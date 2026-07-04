@@ -83,6 +83,12 @@ lib/types.ts                       (read only — Sam/Siddharth own)
 - Call `POST ${API_URL}/api/spatial/query` via `fetch`
 - **Never** import `runSpatialQuery`, `createSpatialEngine`, or anything from `services/data/*`
 
+### Product vs `/voice-test` (dev debugger)
+
+- **`/voice-test`** — local smoke test + pipeline trace only; **not linked** from homepage; not the shipped UI
+- **Product UI** — `features/chat/` + `app/page.tsx` (Arya/Samt); wire **`useChat()`** + voice hooks, not `VoicePipelineDemo`
+- **Where to fix behavior** — hooks, `services/ai/*`, `app/api/chat/*`; test page shell only when debugging trace/mic UX
+
 ---
 
 ## Shared contracts

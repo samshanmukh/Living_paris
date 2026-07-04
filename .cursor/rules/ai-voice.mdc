@@ -34,6 +34,12 @@ Member 3 — AI & Voice. Build `POST /api/chat` + voice hooks. Do not build map 
 - `features/chat/`, `features/map/`, `app/page.tsx`
 - `lib/intent-schema.ts`, `lib/types.ts` (read only)
 
+## Product vs `/voice-test`
+
+- **Default:** edit `hooks/useChat.ts`, `features/voice/useSpeech*.ts`, `services/ai/*`, `app/api/chat/*`
+- **`VoicePipelineDemo` / `app/voice-test/*`** — only when the user says “fix test page” (trace/mic debugger)
+- **Never** treat `/voice-test` as the main chat UI; product UI lives in `features/chat/` + `app/page.tsx`
+
 ## Backend integration
 
 - Call Siddharth's API via HTTP: `POST ${API_URL}/api/spatial/query`
