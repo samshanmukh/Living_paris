@@ -49,7 +49,8 @@ Member 3 — AI & Voice. Build `POST /api/chat` + voice hooks. Do not build map 
 ## Multi-agent order
 
 1. Contracts → 2. Intent → 3. Chat API → 4. Voice/client  
-Merge each branch before starting the next. See exit checks in `docs/AI_VOICE_PLAN.md`.
+All on branch **`cursor/ai-voice-plan`** (PR #6). Commit + push after each agent passes exit checks.  
+Use **one Cursor session** for full context. See `docs/AI_VOICE_PLAN.md`.
 
 ## Before finishing
 

@@ -106,21 +106,53 @@ lib/types.ts                       (read only — Sam/Siddharth own)
 
 ---
 
+## Git & PR strategy (one big PR)
+
+**Branch:** `cursor/ai-voice-plan`  
+**Pull request:** [#6](https://github.com/samshanmukh/Living_paris/pull/6) — all AI & Voice work accumulates here.
+
+This slice is **isolated** from teammates (`workers/`, `features/map/`, etc.), so one PR is safe and efficient:
+
+- One Cursor session keeps **full stack context** (contracts → intent → chat API → voice)
+- No branch switching or per-agent PR overhead
+- Push after each agent passes exit checks; PR #6 updates automatically
+- Merge **once** when Agents 1–4 are demo-ready
+
+```bash
+# Stay on one branch for all agents
+git checkout cursor/ai-voice-plan
+git pull origin master          # stay current with teammates; rebase or merge if needed
+git push origin cursor/ai-voice-plan   # after each agent + commit
+```
+
+**Before each agent:** create local safety branch `backup/ai-before-agent-N` (not pushed).
+
+**Do not** open separate PRs per agent unless coordinator decides to split for review.
+
+---
+
 ## Multi-agent sequence
 
-Run **sequentially**. Merge each branch before starting the next.
+Run **sequentially in one Cursor session** on branch `cursor/ai-voice-plan`.  
+Complete exit checks → commit → push → then start the next agent.
 
-| Agent | Branch | Scope | Gate |
-|-------|--------|-------|------|
-| **1 — Contracts** | `cursor/ai-voice-1-contracts` | `lib/chat-types.ts`, `.env.example` | `tsc --noEmit` |
-| **2 — Intent** | `cursor/ai-voice-2-intent` | `services/ai/openrouter`, `prompts`, `intent-extractor`, `test-intent.mjs` | 5 demo phrases validate |
-| **3 — Chat API** | `cursor/ai-voice-3-chat-api` | `api-client`, `orchestrator`, `response-generator`, `app/api/chat`, `test-chat.mjs` | curl `/api/chat` works |
-| **4 — Voice/client** | `cursor/ai-voice-4-voice-client` | `hooks/useChat`, `features/voice/*` | browser smoke test |
-| **3b — Experience** (optional) | `cursor/ai-voice-3b-experience` | orchestrator only | when `/api/experience` exists on worker |
-
-**Before each agent:** `git pull origin master`, create `backup/ai-before-agent-N`.
+| Agent | Scope | Gate |
+|-------|-------|------|
+| **1 — Contracts** | `lib/chat-types.ts`, `.env.example` | `tsc --noEmit` |
+| **2 — Intent** | `services/ai/openrouter`, `prompts`, `intent-extractor`, `test-intent.mjs` | 5 demo phrases validate |
+| **3 — Chat API** | `api-client`, `orchestrator`, `response-generator`, `app/api/chat`, `test-chat.mjs` | curl `/api/chat` works |
+| **4 — Voice/client** | `hooks/useChat`, `features/voice/*` | browser smoke test |
+| **3b — Experience** (optional) | orchestrator only | when `/api/experience` exists on worker |
 
 **After each agent:** `git diff master --name-only` — only your paths allowed.
+
+**Recommended Cursor prompt (one window):**
+
+```text
+Read docs/AI_VOICE_PLAN.md and .cursor/rules/ai-voice.mdc.
+Branch: cursor/ai-voice-plan (PR #6). Execute Agent N, run exit checks, commit, push.
+Do not start Agent N+1 until Agent N checks pass.
+```
 
 ---
 
@@ -229,28 +261,40 @@ Run **sequentially**. Merge each branch before starting the next.
 git restore services/ai app/api/chat features/voice hooks/useChat.ts lib/chat-types.ts scripts/test-*.mjs
 ```
 
-**Nuclear (your branch only):**
+**Revert to before Agent N (local backup branch):**
+
+```bash
+git checkout backup/ai-before-agent-N
+git branch -D cursor/ai-voice-plan
+git checkout -b cursor/ai-voice-plan
+git push -f origin cursor/ai-voice-plan   # only if PR not reviewed yet; coordinate with team
+```
+
+**Nuclear (restart whole slice):**
 
 ```bash
 git checkout master && git pull
-git branch -D cursor/ai-voice-*
-git checkout -b cursor/ai-voice-1-contracts
+git branch -D cursor/ai-voice-plan
+git checkout -b cursor/ai-voice-plan
 ```
 
 **Never:** `git reset --hard` on `master`, or edit `workers/`.
 
 ---
 
-## Final integration checklist (coordinator)
+## Final integration checklist (before merging PR #6)
 
+- [ ] Agents 1–4 exit checks all pass
 - [ ] `npm run test:api`
 - [ ] 5 demo phrases via `/api/chat`
 - [ ] No secrets in git (`git grep sk-or`)
 - [ ] Sample `ChatResponse` JSON shared with Rushendra + Arya
 - [ ] PR description states: no changes to `workers/` or `services/data/`
+- [ ] Team merges PR #6 into `master`
 
 ---
 
 ## PR size estimate
 
-~12–16 new files, ~800–1,400 lines added, mostly new code (low conflict risk).
+**One PR (#6):** ~12–16 new files, ~800–1,400 lines added when Agents 1–4 complete.  
+Mostly new code in isolated paths — low conflict risk with other teammates.
