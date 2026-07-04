@@ -11,7 +11,8 @@
     "fetch-data": "node scripts/fetch-paris-data.mjs",
     "upload-data": "node scripts/upload-r2-data.mjs",
     "upload-data:remote": "node scripts/upload-r2-data.mjs --remote",
-    "deploy:api": "wrangler deploy"
+    "deploy:api": "wrangler deploy",
+    "test:api": "tsx --test tests/spatial-query.test.ts"
   },
   "dependencies": {
     "@turf/turf": "^7.3.5",
@@ -33,6 +34,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "tailwindcss": "^4",
+    "tsx": "^4.23.0",
     "typescript": "^5",
     "wrangler": "^4.107.0"
   }

@@ -79,7 +79,7 @@ export function filterByIntent(
     const props = feature.properties;
 
     if (!layers.has(props.layer)) return false;
-    if (intent.accessibility && !props.accessible) return false;
+    if (intent.accessibility && props.accessible === false) return false;
     if (intent.indoor && !props.indoor) return false;
     if (intent.rainy && !props.indoor && props.layer !== "metro") return false;
     if (!matchesMood(feature, intent.mood)) return false;

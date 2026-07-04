@@ -464,7 +464,7 @@ By combining conversational AI, public city data, and immersive map interactions
 
 The API runs on **Cloudflare Workers** with GeoJSON stored in **R2**. The Next.js frontend proxies `/api/*` to the worker during local dev.
 
-**All public datasets are scoped to Paris** (opendata.paris.fr + IDFM metro within city bounds).
+**All public datasets are scoped to Paris** — opendata.paris.fr + IDFM metro within Paris bounds. Re-run `npm run fetch-data` to refresh.
 
 > **AI team:** Wrap `POST /api/spatial/query` inside your `/api/chat` endpoint.
 
@@ -472,13 +472,13 @@ The API runs on **Cloudflare Workers** with GeoJSON stored in **R2**. The Next.j
 
 ```bash
 npm install
+cp .env.example .env.local
 npm run fetch-data        # Download Paris Open Data → public/data/
 npm run upload-data       # Upload GeoJSON to local R2 (for wrangler dev)
 npm run dev:api           # Cloudflare Worker on http://localhost:8787
 npm run dev               # Next.js frontend (proxies /api → worker)
+npm run test:api          # Integration tests (romantic + rainy queries)
 ```
-
-Copy env template: `cp .env.example .env.local`
 
 ## Deploy API to Cloudflare
 
@@ -494,7 +494,21 @@ Set `API_URL=https://living-paris-api.<your-subdomain>.workers.dev` in productio
 
 ## GeoJSON Layers (R2 / `public/data/`)
 
-See `public/data/manifest.json` for current feature counts after `npm run fetch-data`.
+Run `npm run fetch-data` then check `public/data/manifest.json` for live counts. Current layers:
+
+| Layer | Source | Features |
+|-------|--------|----------|
+| `cafes` | opendata.paris.fr — terrasses-autorisations | 800 |
+| `bikes` | velib-emplacement-des-stations | 1,517 |
+| `trees` | les-arbres | 1,200 |
+| `parks` | lieux-municipaux + jardins-relais | 235 |
+| `accessibility` | accessible hébergements + POIs | 370 |
+| `museums` | lieux-municipaux + national supplement | 92 |
+| `metro` | IDFM arrets (Paris bounds) | 265 |
+| `noise` | bruit-evolution | 15 |
+| `air-quality` | respirons-mieux | 7 |
+
+Café features include **`dietary` tags** (`vegetarian`, `vegan`, etc.) inferred from venue names for the Experience Engine (Member 5). Outdoor terraces omit `accessible: false` so the romantic + accessibility demo is not over-filtered.
 
 ## API Endpoints
 
