@@ -27,6 +27,15 @@ const THEME_ROUTE_COLOR: Record<MapState["theme"], string> = {
   day: "#c4593a",
 };
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 interface MapCanvasProps {
   mapState: MapState | null;
   routeGeometry: Feature<LineString> | null;
@@ -97,74 +106,88 @@ export default function MapCanvas({
     };
   }, []);
 
-  // Sync markers + camera when mapState changes.
+  // Sync markers + camera when mapState changes (after map load).
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapState) return;
 
-    markersRef.current.forEach((m) => m.remove());
-    markersRef.current = [];
+    let cancelled = false;
 
-    const stopOrder = new Map(
-      mapState.routeWaypoints.map((w, i) => [`${w.lon},${w.lat}`, i + 1])
-    );
+    const sync = () => {
+      if (cancelled) return;
 
-    mapState.markers.forEach((marker, idx) => {
-      const el = document.createElement("div");
-      el.className = "lp-marker";
-      el.dataset.layer = marker.layer;
-      el.style.animationDelay = `${Math.min(idx * 35, 800)}ms`;
+      markersRef.current.forEach((m) => m.remove());
+      markersRef.current = [];
 
-      if (marker.highlighted) {
-        el.classList.add("lp-marker-hero");
-        const order = stopOrder.get(`${marker.coords[0]},${marker.coords[1]}`);
-        if (order) el.textContent = String(order);
-      }
-
-      if (onMarkerClick) {
-        el.addEventListener("click", () => onMarkerClick(marker.id));
-      }
-
-      const popup = new maplibregl.Popup({ offset: 18, closeButton: false }).setHTML(
-        `<strong>${marker.name}</strong>${
-          marker.reasons.length
-            ? `<br/><span style="color:#6b6155">${marker.reasons.slice(0, 2).join(" · ")}</span>`
-            : ""
-        }`
+      const stopOrder = new Map(
+        mapState.routeWaypoints.map((w, i) => [`${w.lon},${w.lat}`, i + 1])
       );
 
-      const m = new maplibregl.Marker({ element: el })
-        .setLngLat(marker.coords)
-        .setPopup(popup)
-        .addTo(map);
-      markersRef.current.push(m);
-    });
+      mapState.markers.forEach((marker, idx) => {
+        const el = document.createElement("div");
+        el.className = "lp-marker";
+        el.dataset.layer = marker.layer;
+        el.style.animationDelay = `${Math.min(idx * 35, 800)}ms`;
 
-    // Camera: fit itinerary stops when there are 2+, otherwise flyTo.
-    const heroCoords = mapState.markers
-      .filter((m) => m.highlighted)
-      .map((m) => m.coords);
+        if (marker.highlighted) {
+          el.classList.add("lp-marker-hero");
+          const order = stopOrder.get(`${marker.coords[0]},${marker.coords[1]}`);
+          if (order) el.textContent = String(order);
+        }
 
-    if (heroCoords.length >= 2) {
-      const bounds = heroCoords.reduce(
-        (b, c) => b.extend(c),
-        new maplibregl.LngLatBounds(heroCoords[0], heroCoords[0])
-      );
-      map.fitBounds(bounds, {
-        padding: { top: 110, bottom: 330, left: 60, right: 60 },
-        pitch: mapState.flyTo.pitch,
-        duration: 2200,
-        essential: true,
+        if (onMarkerClick) {
+          el.addEventListener("click", () => onMarkerClick(marker.id));
+        }
+
+        const reasons = escapeHtml(marker.reasons.slice(0, 2).join(" · "));
+        const popup = new maplibregl.Popup({ offset: 18, closeButton: false }).setHTML(
+          `<strong>${escapeHtml(marker.name)}</strong>${
+            marker.reasons.length
+              ? `<br/><span style="color:#6b6155">${reasons}</span>`
+              : ""
+          }`
+        );
+
+        const m = new maplibregl.Marker({ element: el })
+          .setLngLat(marker.coords)
+          .setPopup(popup)
+          .addTo(map);
+        markersRef.current.push(m);
       });
-    } else {
-      map.flyTo({
-        center: mapState.flyTo.center,
-        zoom: mapState.flyTo.zoom,
-        pitch: mapState.flyTo.pitch,
-        duration: 2200,
-        essential: true,
-      });
-    }
+
+      // Camera: fit itinerary stops when there are 2+, otherwise flyTo.
+      const heroCoords = mapState.markers
+        .filter((m) => m.highlighted)
+        .map((m) => m.coords);
+
+      if (heroCoords.length >= 2) {
+        const bounds = heroCoords.reduce(
+          (b, c) => b.extend(c),
+          new maplibregl.LngLatBounds(heroCoords[0], heroCoords[0])
+        );
+        map.fitBounds(bounds, {
+          padding: { top: 110, bottom: 330, left: 60, right: 60 },
+          pitch: mapState.flyTo.pitch,
+          duration: 2200,
+          essential: true,
+        });
+      } else {
+        map.flyTo({
+          center: mapState.flyTo.center,
+          zoom: mapState.flyTo.zoom,
+          pitch: mapState.flyTo.pitch,
+          duration: 2200,
+          essential: true,
+        });
+      }
+    };
+
+    if (loadedRef.current) sync();
+    else map.once("load", sync);
+
+    return () => {
+      cancelled = true;
+    };
   }, [mapState, onMarkerClick]);
 
   // Sync route line + theme color.

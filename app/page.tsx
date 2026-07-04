@@ -65,8 +65,14 @@ export default function Home() {
   const [cardOpen, setCardOpen] = useState(true);
   const [redrawing, setRedrawing] = useState(false);
   const intentRef = useRef<IntentQuery | undefined>(undefined);
+  const chatAbortRef = useRef<AbortController | null>(null);
+  const redrawingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSend = useCallback(async (text: string) => {
+    chatAbortRef.current?.abort();
+    const controller = new AbortController();
+    chatAbortRef.current = controller;
+
     setMessages((prev) => [...prev, { id: nextId(), role: "user", text }]);
     setThinking(true);
 
@@ -75,12 +81,16 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text, intent: intentRef.current }),
+        signal: controller.signal,
       });
 
       if (!res.ok) throw new Error(`chat failed: ${res.status}`);
       const data = (await res.json()) as ChatApiResponse;
 
+      if (controller.signal.aborted) return;
+
       intentRef.current = data.intent;
+      if (redrawingTimerRef.current) clearTimeout(redrawingTimerRef.current);
       setRedrawing(true);
       setResult(data.result);
       setRouteGeometry(data.route?.geometry ?? null);
@@ -89,8 +99,20 @@ export default function Home() {
         ...prev,
         { id: nextId(), role: "paris", text: data.reply },
       ]);
-      setTimeout(() => setRedrawing(false), 2400);
-    } catch {
+      redrawingTimerRef.current = setTimeout(() => {
+        setRedrawing(false);
+        redrawingTimerRef.current = null;
+      }, 2400);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+
+      setResult(null);
+      setRouteGeometry(null);
+      setRedrawing(false);
+      if (redrawingTimerRef.current) {
+        clearTimeout(redrawingTimerRef.current);
+        redrawingTimerRef.current = null;
+      }
       setMessages((prev) => [
         ...prev,
         {
@@ -100,7 +122,7 @@ export default function Home() {
         },
       ]);
     } finally {
-      setThinking(false);
+      if (!controller.signal.aborted) setThinking(false);
     }
   }, []);
 

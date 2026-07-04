@@ -65,7 +65,11 @@ export function parseMessage(message: string): Partial<IntentQuery> {
     }
   }
 
-  if (/rain|pouring|wet|drizzl|storm/i.test(message)) {
+  if (
+    /\b(?:rain(?:ing|y)?|pouring|drizzl(?:e|ing|y)?|storm(?:y|ing)?)\b/i.test(
+      message
+    )
+  ) {
     if (/stop(ped)? raining|not raining|sun.?s? (?:back )?out|cleared up/i.test(message)) {
       patch.rainy = false;
     } else {
@@ -80,11 +84,14 @@ export function parseMessage(message: string): Partial<IntentQuery> {
   const budget = parseBudget(message);
   if (budget != null) patch.budget = budget;
 
-  const timeBudget = parseTimeBudget(message);
-  if (timeBudget != null) patch.timeBudget = timeBudget;
-
   const walk = parseWalk(message);
   if (walk != null) patch.walk = walk;
+
+  const hasWalkContext = walk != null || /\bwalk(?:ing)?\b/i.test(message);
+  if (!hasWalkContext) {
+    const timeBudget = parseTimeBudget(message);
+    if (timeBudget != null) patch.timeBudget = timeBudget;
+  }
 
   const dietary = DIETARY_PATTERNS.filter(([p]) => p.test(message)).map(([, d]) => d);
   if (dietary.length) patch.dietary = dietary;
