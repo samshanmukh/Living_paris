@@ -44,6 +44,7 @@ export interface ParisFeatureProperties {
   airQualityIndex?: number;
   capacity?: number;
   tags?: string[];
+  dietary?: string[];
   source?: string;
   scoreHint?: number;
 }

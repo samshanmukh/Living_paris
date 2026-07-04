@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-04T19:46:45.035Z",
+  "updatedAt": "2026-07-04T21:30:22.916Z",
   "layers": [
     {
       "id": "cafes",
@@ -18,7 +18,7 @@
     },
     {
       "id": "parks",
-      "featureCount": 180,
+      "featureCount": 235,
       "path": "/data/parks.geojson"
     },
     {

@@ -462,29 +462,53 @@ By combining conversational AI, public city data, and immersive map interactions
 
 # 📊 Data & Backend API
 
-The data layer is implemented and ready for the maps and AI teams to consume.
+The API runs on **Cloudflare Workers** with GeoJSON stored in **R2**. The Next.js frontend proxies `/api/*` to the worker during local dev.
+
+**All public datasets are scoped to Paris** — opendata.paris.fr + IDFM metro within Paris bounds. Re-run `npm run fetch-data` to refresh.
+
+> **AI team:** Wrap `POST /api/spatial/query` inside your `/api/chat` endpoint.
 
 ## Setup
 
 ```bash
 npm install
-npm run fetch-data   # Download & normalize Paris Open Data → public/data/
-npm run dev
+cp .env.example .env.local
+npm run fetch-data        # Download Paris Open Data → public/data/
+npm run upload-data       # Upload GeoJSON to local R2 (for wrangler dev)
+npm run dev:api           # Cloudflare Worker on http://localhost:8787
+npm run dev               # Next.js frontend (proxies /api → worker)
+npm run test:api          # Integration tests (romantic + rainy queries)
 ```
 
-## GeoJSON Layers (`public/data/`)
+## Deploy API to Cloudflare
+
+```bash
+# One-time: create R2 bucket in Cloudflare dashboard (or wrangler r2 bucket create living-paris-geojson)
+npm run fetch-data
+npm run upload-data:remote
+npx wrangler secret put MAPBOX_ACCESS_TOKEN   # optional
+npm run deploy:api
+```
+
+Set `API_URL=https://living-paris-api.<your-subdomain>.workers.dev` in production for the Next.js frontend.
+
+## GeoJSON Layers (R2 / `public/data/`)
+
+Run `npm run fetch-data` then check `public/data/manifest.json` for live counts. Current layers:
 
 | Layer | Source | Features |
 |-------|--------|----------|
-| `cafes` | opendata.paris.fr — terrasses-autorisations | ~800 |
-| `bikes` | opendata.paris.fr — velib-emplacement-des-stations | ~1500 |
-| `trees` | opendata.paris.fr — les-arbres | ~1200 |
-| `parks` | jardins-relais + curated major parks | ~35 |
-| `accessibility` | accessible hébergements + curated POIs | ~370 |
-| `museums` | Curated Paris museums | 12 |
-| `metro` | Curated RATP stations | 16 |
-| `noise` | Bruit monitoring stations | 10 |
-| `air-quality` | Air quality monitoring points | 8 |
+| `cafes` | opendata.paris.fr — terrasses-autorisations | 800 |
+| `bikes` | velib-emplacement-des-stations | 1,517 |
+| `trees` | les-arbres | 1,200 |
+| `parks` | lieux-municipaux + jardins-relais | 235 |
+| `accessibility` | accessible hébergements + POIs | 370 |
+| `museums` | lieux-municipaux + national supplement | 92 |
+| `metro` | IDFM arrets (Paris bounds) | 265 |
+| `noise` | bruit-evolution | 15 |
+| `air-quality` | respirons-mieux | 7 |
+
+Café features include **`dietary` tags** (`vegetarian`, `vegan`, etc.) inferred from venue names for the Experience Engine (Member 5). Outdoor terraces omit `accessible: false` so the romantic + accessibility demo is not over-filtered.
 
 ## API Endpoints
 
@@ -501,7 +525,7 @@ npm run dev
 ## Spatial Query (for AI + Maps teams)
 
 ```bash
-curl -X POST http://localhost:3000/api/spatial/query \
+curl -X POST http://localhost:8787/api/spatial/query \
   -H "Content-Type: application/json" \
   -d '{
     "mood": "romantic",
