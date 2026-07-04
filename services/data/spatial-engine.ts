@@ -1,6 +1,10 @@
 import * as turf from "@turf/turf";
 import type { Feature, Polygon } from "geojson";
-import type { IntentQuery, ParisFeature, ParisFeatureCollection } from "@/lib/types";
+import type {
+  IntentQuery,
+  ParisFeature,
+  ParisFeatureCollection,
+} from "@/lib/types";
 import {
   DEFAULT_QUERY_LIMIT,
   DEFAULT_WALK_MINUTES,
@@ -8,7 +12,7 @@ import {
   WALKING_SPEED_M_PER_MIN,
 } from "@/lib/constants";
 import { filterByIntent, rankFeatures, resolveLayers } from "./intent-filter";
-import { loadLayers } from "./loader";
+import type { DataStore } from "./store";
 import { getSpatialIndex } from "./spatial-index";
 
 export function walkMinutesToMeters(minutes: number): number {
@@ -88,66 +92,70 @@ export interface SpatialQueryOptions {
   skipRadius?: boolean;
 }
 
-export async function runSpatialQuery(
-  intent: IntentQuery,
-  options: SpatialQueryOptions = {}
-): Promise<{
-  geojson: ParisFeatureCollection;
-  layers: ReturnType<typeof resolveLayers>;
-  center: [number, number];
-  radiusMeters: number;
-  totalFeatures: number;
-}> {
-  const layers = resolveLayers(intent);
-  const collection = await loadLayers(layers);
-  const center = resolveCenter(intent);
-  const radiusMeters = resolveRadius(intent);
-  const limit = intent.limit ?? DEFAULT_QUERY_LIMIT;
+export function createSpatialEngine(store: DataStore) {
+  async function runSpatialQuery(
+    intent: IntentQuery,
+    options: SpatialQueryOptions = {}
+  ): Promise<{
+    geojson: ParisFeatureCollection;
+    layers: ReturnType<typeof resolveLayers>;
+    center: [number, number];
+    radiusMeters: number;
+    totalFeatures: number;
+  }> {
+    const layers = resolveLayers(intent);
+    const collection = await store.loadLayers(layers);
+    const center = resolveCenter(intent);
+    const radiusMeters = resolveRadius(intent);
+    const limit = intent.limit ?? DEFAULT_QUERY_LIMIT;
 
-  let features = filterByIntent(collection.features, intent);
+    let features = filterByIntent(collection.features, intent);
 
-  if (!options.skipRadius) {
-    features = filterWithinRadius(features, center, radiusMeters, true);
+    if (!options.skipRadius) {
+      features = filterWithinRadius(features, center, radiusMeters, true);
+    }
+
+    features = rankFeatures(features, intent).slice(0, limit);
+
+    return {
+      geojson: { type: "FeatureCollection", features },
+      layers,
+      center,
+      radiusMeters,
+      totalFeatures: features.length,
+    };
   }
 
-  features = rankFeatures(features, intent).slice(0, limit);
+  async function queryPlaces(params: {
+    type?: string;
+    layer?: string;
+    lat?: number;
+    lon?: number;
+    radius?: number;
+    accessible?: boolean;
+    limit?: number;
+  }): Promise<ParisFeatureCollection> {
+    const intent: IntentQuery = {
+      lat: params.lat,
+      lon: params.lon,
+      radius: params.radius,
+      accessibility: params.accessible,
+      limit: params.limit,
+      layers: params.layer ? ([params.layer] as IntentQuery["layers"]) : undefined,
+    };
 
-  return {
-    geojson: { type: "FeatureCollection", features },
-    layers,
-    center,
-    radiusMeters,
-    totalFeatures: features.length,
-  };
-}
+    const { geojson } = await runSpatialQuery(intent, {
+      skipRadius: params.radius == null && params.lat == null,
+    });
 
-export async function queryPlaces(params: {
-  type?: string;
-  layer?: string;
-  lat?: number;
-  lon?: number;
-  radius?: number;
-  accessible?: boolean;
-  limit?: number;
-}): Promise<ParisFeatureCollection> {
-  const intent: IntentQuery = {
-    lat: params.lat,
-    lon: params.lon,
-    radius: params.radius,
-    accessibility: params.accessible,
-    limit: params.limit,
-    layers: params.layer ? ([params.layer] as IntentQuery["layers"]) : undefined,
-  };
+    if (params.type) {
+      geojson.features = geojson.features.filter(
+        (f) => f.properties.type === params.type
+      );
+    }
 
-  const { geojson } = await runSpatialQuery(intent, {
-    skipRadius: params.radius == null && params.lat == null,
-  });
-
-  if (params.type) {
-    geojson.features = geojson.features.filter(
-      (f) => f.properties.type === params.type
-    );
+    return geojson;
   }
 
-  return geojson;
+  return { runSpatialQuery, queryPlaces, getLayerMetadata: () => store.getLayerMetadata(), loadLayer: (layer: Parameters<DataStore["loadLayer"]>[0]) => store.loadLayer(layer) };
 }

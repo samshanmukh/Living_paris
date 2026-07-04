@@ -105,6 +105,18 @@ function arrondissementFromPostal(code) {
   return match ? `${match[1]}e` : undefined;
 }
 
+function inferDietaryTags(name) {
+  if (!name) return [];
+  const n = name.toLowerCase();
+  const tags = new Set();
+  if (/vegan/i.test(n)) tags.add("vegan");
+  if (/veg|vég|veget|salad|salade|bio|green|legume|légume/i.test(n)) tags.add("vegetarian");
+  if (/gluten|sans.?gluten/i.test(n)) tags.add("gluten-free");
+  if (/halal/i.test(n)) tags.add("halal");
+  if (/kosher|cacher/i.test(n)) tags.add("kosher");
+  return [...tags];
+}
+
 async function buildCafes() {
   console.log("Fetching café terraces...");
   const records = await fetchAll("terrasses-autorisations", {
@@ -114,29 +126,33 @@ async function buildCafes() {
 
   const features = records
     .filter((r) => r.geo_point_2d?.lon && r.geo_point_2d?.lat)
-    .map((r, i) =>
-      pointFeature(
-        `cafe-${r.siret ?? i}`,
-        r.geo_point_2d.lon,
-        r.geo_point_2d.lat,
-        {
-          id: `cafe-${r.siret ?? i}`,
-          name: r.nom_enseigne ?? r.adresse ?? "Café terrace",
-          layer: "cafes",
-          type: "cafe",
-          address: r.adresse,
-          arrondissement: arrondissementFromPostal(r.arrondissement),
-          accessible: false,
-          indoor: false,
-          romantic: [5, 6, 7, 8].includes(Number(String(r.arrondissement).slice(-2))),
-          familyFriendly: true,
-          quiet: false,
-          budgetLevel: "medium",
-          tags: ["terrace", "outdoor", r.typologie?.toLowerCase?.() ?? "terrace"].filter(Boolean),
-          source: "opendata.paris.fr/terrasses-autorisations",
-        }
-      )
-    );
+    .map((r, i) => {
+      const name = r.nom_enseigne ?? r.adresse ?? "Café terrace";
+      const dietary = inferDietaryTags(name);
+      const tags = [
+        "terrace",
+        "outdoor",
+        r.typologie?.toLowerCase?.() ?? "terrace",
+        ...dietary,
+      ].filter(Boolean);
+
+      return pointFeature(`cafe-${r.siret ?? i}`, r.geo_point_2d.lon, r.geo_point_2d.lat, {
+        id: `cafe-${r.siret ?? i}`,
+        name,
+        layer: "cafes",
+        type: "cafe",
+        address: r.adresse,
+        arrondissement: arrondissementFromPostal(r.arrondissement),
+        indoor: false,
+        romantic: [5, 6, 7, 8].includes(Number(String(r.arrondissement).slice(-2))),
+        familyFriendly: true,
+        quiet: false,
+        budgetLevel: "medium",
+        dietary,
+        tags,
+        source: "opendata.paris.fr/terrasses-autorisations",
+      });
+    });
 
   return { type: "FeatureCollection", features };
 }
