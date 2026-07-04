@@ -3,13 +3,24 @@ main = "workers/api/src/index.ts"
 compatibility_date = "2024-04-01"
 compatibility_flags = ["nodejs_compat"]
 
-[[r2_buckets]]
+# Default deploy bundles GeoJSON as static assets (no R2 required).
+[assets]
+directory = "./public/data"
+binding = "ASSETS"
+run_worker_first = ["/api/*"]
+
+[vars]
+ALLOWED_ORIGIN = "*"
+
+[dev]
+port = 8787
+
+# Optional production env with R2 (requires bucket + upload-data:remote).
+[env.production]
+[[env.production.r2_buckets]]
 binding = "DATA"
 bucket_name = "living-paris-geojson"
 preview_bucket_name = "living-paris-geojson-preview"
 
-[vars]
-ALLOWED_ORIGIN = "http://localhost:3000"
-
-[dev]
-port = 8787
+[env.production.vars]
+ALLOWED_ORIGIN = "*"

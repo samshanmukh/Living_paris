@@ -462,35 +462,82 @@ By combining conversational AI, public city data, and immersive map interactions
 
 # 📊 Data & Backend API
 
-The API runs on **Cloudflare Workers** with GeoJSON stored in **R2**. The Next.js frontend proxies `/api/*` to the worker during local dev.
+**Live API:** https://living-paris-api.living-paris.workers.dev
+
+The API runs on **Cloudflare Workers** with GeoJSON bundled as static assets. The Next.js frontend proxies `/api/*` to this URL (see `.env.example`).
 
 **All public datasets are scoped to Paris** — opendata.paris.fr + IDFM metro within Paris bounds. Re-run `npm run fetch-data` to refresh.
 
 > **AI team:** Wrap `POST /api/spatial/query` inside your `/api/chat` endpoint.
 
-## Setup
+## Quick start (frontend / other members)
+
+```bash
+npm install
+cp .env.example .env.local   # points at the live Cloudflare API
+npm run dev                  # Next.js on http://localhost:3000
+```
+
+No need to run the API locally — `.env.example` already has:
+
+```env
+API_URL=https://living-paris-api.living-paris.workers.dev
+NEXT_PUBLIC_API_URL=https://living-paris-api.living-paris.workers.dev
+```
+
+**Vercel:** add the same two variables in Project → Settings → Environment Variables (or rely on committed `.env.production`).
+
+## Full backend setup (Member 4 / local API dev)
 
 ```bash
 npm install
 cp .env.example .env.local
 npm run fetch-data        # Download Paris Open Data → public/data/
-npm run upload-data       # Upload GeoJSON to local R2 (for wrangler dev)
-npm run dev:api           # Cloudflare Worker on http://localhost:8787
+npm run dev:api           # Cloudflare Worker on http://localhost:8787 (uses bundled assets)
 npm run dev               # Next.js frontend (proxies /api → worker)
 npm run test:api          # Integration tests (romantic + rainy queries)
 ```
 
-## Deploy API to Cloudflare
+For local API dev, override in `.env.local`:
+
+```env
+API_URL=http://localhost:8787
+NEXT_PUBLIC_API_URL=http://localhost:8787
+```
+
+Optional — test with local R2 preview bucket instead of bundled assets:
 
 ```bash
-# One-time: create R2 bucket in Cloudflare dashboard (or wrangler r2 bucket create living-paris-geojson)
+npm run upload-data       # Upload GeoJSON to local R2 preview bucket
+npm run dev:api -- --env production
+```
+
+## Deploy API to Cloudflare
+
+**Quick deploy** (bundles GeoJSON with the worker — no R2 setup):
+
+```bash
 npm run fetch-data
-npm run upload-data:remote
-npx wrangler secret put MAPBOX_ACCESS_TOKEN   # optional
 npm run deploy:api
 ```
 
-Set `API_URL=https://living-paris-api.<your-subdomain>.workers.dev` in production for the Next.js frontend.
+**Production with R2** (optional, for live data updates without redeploying):
+
+```bash
+# One-time: create R2 bucket (wrangler r2 bucket create living-paris-geojson)
+npm run fetch-data
+npm run upload-data:remote
+npx wrangler secret put MAPBOX_ACCESS_TOKEN   # optional
+npm run deploy:api:production
+```
+
+Production API URL (already configured in `.env.example` and `.env.production`):
+
+```
+https://living-paris-api.living-paris.workers.dev
+```
+
+For CI deploy, add GitHub repo secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` — pushes to `master` that touch API files will run `.github/workflows/deploy-api.yml`.
 
 ## GeoJSON Layers (R2 / `public/data/`)
 
@@ -525,7 +572,7 @@ Café features include **`dietary` tags** (`vegetarian`, `vegan`, etc.) inferred
 ## Spatial Query (for AI + Maps teams)
 
 ```bash
-curl -X POST http://localhost:8787/api/spatial/query \
+curl -X POST https://living-paris-api.living-paris.workers.dev/api/spatial/query \
   -H "Content-Type: application/json" \
   -d '{
     "mood": "romantic",
