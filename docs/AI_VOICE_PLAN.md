@@ -39,7 +39,7 @@ User (text/voice)
 
 ```bash
 npm run dev:api    # Worker on http://localhost:8787
-npm run dev        # Next.js on http://localhost:3000 (proxies /api/* except /api/chat)
+npm run dev        # Next.js on http://localhost:3000 (rewrites /api/** to Worker; App Router routes like /api/chat stay local)
 ```
 
 **Env:** copy `.env.example` → `.env.local`, set `OPENROUTER_API_KEY` and `OPENROUTER_MODEL=x-ai/grok-4.3`.
@@ -121,7 +121,7 @@ This slice is **isolated** from teammates (`workers/`, `features/map/`, etc.), s
 ```bash
 # Stay on one branch for all agents
 git checkout cursor/ai-voice-plan
-git pull origin master          # stay current with teammates; rebase or merge if needed
+git pull origin <base-branch>    # stay current with teammates; rebase or merge if needed
 git push origin cursor/ai-voice-plan   # after each agent + commit
 ```
 
@@ -144,7 +144,7 @@ Complete exit checks → commit → push → then start the next agent.
 | **4 — Voice/client** | `hooks/useChat`, `features/voice/*` | browser smoke test |
 | **3b — Experience** (optional) | orchestrator only | when `/api/experience` exists on worker |
 
-**After each agent:** `git diff master --name-only` — only your paths allowed.
+**After each agent:** `git diff <base-branch> --name-only` — only your paths allowed.
 
 **Recommended Cursor prompt (one window):**
 
@@ -273,12 +273,12 @@ git push -f origin cursor/ai-voice-plan   # only if PR not reviewed yet; coordin
 **Nuclear (restart whole slice):**
 
 ```bash
-git checkout master && git pull
+git checkout <base-branch> && git pull
 git branch -D cursor/ai-voice-plan
 git checkout -b cursor/ai-voice-plan
 ```
 
-**Never:** `git reset --hard` on `master`, or edit `workers/`.
+**Never:** `git reset --hard` on `<base-branch>`, or edit `workers/`.
 
 ---
 
@@ -290,7 +290,7 @@ git checkout -b cursor/ai-voice-plan
 - [ ] No secrets in git (`git grep sk-or`)
 - [ ] Sample `ChatResponse` JSON shared with Rushendra + Arya
 - [ ] PR description states: no changes to `workers/` or `services/data/`
-- [ ] Team merges PR #6 into `master`
+- [ ] Team merges PR #6 into `<base-branch>`
 
 ---
 

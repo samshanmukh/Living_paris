@@ -21,9 +21,9 @@ Member 3 — AI & Voice. Build `POST /api/chat` + voice hooks. Do not build map 
 
 ## Allowed paths (edit only these)
 
-- `services/ai/*`
-- `app/api/chat/*`
-- `features/voice/*`
+- `services/ai/**`
+- `app/api/chat/**`
+- `features/voice/**`
 - `hooks/useChat.ts`
 - `lib/chat-types.ts`
 - `scripts/test-intent.mjs`, `scripts/test-chat.mjs`
@@ -55,7 +55,7 @@ Use **one Cursor session** for full context. See `docs/AI_VOICE_PLAN.md`.
 ## Before finishing
 
 ```bash
-git diff master --name-only   # must be only allowed paths
+git diff <base-branch> --name-only   # must be only allowed paths
 ```
 
 Run the exit checks for your agent number in `docs/AI_VOICE_PLAN.md`.

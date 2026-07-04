@@ -144,12 +144,16 @@ export function passesHardFilters(
 ): boolean {
   const props = feature.properties;
 
-  if (intent.accessibility && props.accessible === false && props.layer === "museums") {
+  if (intent.accessibility && props.accessible === false) {
     return false;
   }
 
-  // Rainy day: outdoor-only places (terraces) drop off the map.
-  if ((intent.rainy || mode.id === "rainy-day") && props.indoor === false && props.layer === "cafes") {
+  // Rainy day: outdoor-only places drop off the map (matches spatial API filter).
+  if (
+    (intent.rainy || mode.id === "rainy-day") &&
+    props.indoor === false &&
+    (props.layer === "cafes" || props.layer === "parks")
+  ) {
     return false;
   }
 
