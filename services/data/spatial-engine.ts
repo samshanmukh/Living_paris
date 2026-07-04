@@ -1,0 +1,149 @@
+import * as turf from "@turf/turf";
+import type { Feature, Polygon } from "geojson";
+import type { IntentQuery, ParisFeature, ParisFeatureCollection } from "@/lib/types";
+import {
+  DEFAULT_QUERY_LIMIT,
+  DEFAULT_WALK_MINUTES,
+  PARIS_CENTER,
+  WALKING_SPEED_M_PER_MIN,
+} from "@/lib/constants";
+import { filterByIntent, rankFeatures, resolveLayers } from "./intent-filter";
+import { loadLayers } from "./loader";
+
+export function walkMinutesToMeters(minutes: number): number {
+  return minutes * WALKING_SPEED_M_PER_MIN;
+}
+
+export function resolveCenter(intent: IntentQuery): [number, number] {
+  if (intent.lon != null && intent.lat != null) {
+    return [intent.lon, intent.lat];
+  }
+  return PARIS_CENTER;
+}
+
+export function resolveRadius(intent: IntentQuery): number {
+  if (intent.radius != null) return intent.radius;
+  const walkMinutes = intent.walk ?? DEFAULT_WALK_MINUTES;
+  return walkMinutesToMeters(walkMinutes);
+}
+
+export function filterWithinRadius(
+  features: ParisFeature[],
+  center: [number, number],
+  radiusMeters: number
+): ParisFeature[] {
+  const centerPoint = turf.point(center);
+  const circle = turf.circle(center, radiusMeters / 1000, {
+    steps: 64,
+    units: "kilometers",
+  });
+
+  return features.filter((feature) => {
+    if (feature.geometry.type !== "Point") return false;
+    const pt = turf.point(feature.geometry.coordinates);
+    if (turf.distance(centerPoint, pt, { units: "meters" }) <= radiusMeters) {
+      return true;
+    }
+    return turf.booleanPointInPolygon(pt, circle as Feature<Polygon>);
+  });
+}
+
+export function filterWithinPolygon(
+  features: ParisFeature[],
+  polygon: Feature<Polygon>
+): ParisFeature[] {
+  return features.filter((feature) => {
+    if (feature.geometry.type !== "Point") return false;
+    return turf.booleanPointInPolygon(
+      turf.point(feature.geometry.coordinates),
+      polygon
+    );
+  });
+}
+
+export function findNearby(
+  features: ParisFeature[],
+  center: [number, number],
+  limit: number
+): ParisFeature[] {
+  const centerPoint = turf.point(center);
+
+  return [...features]
+    .map((feature) => ({
+      feature,
+      distance: turf.distance(centerPoint, turf.point(feature.geometry.coordinates), {
+        units: "meters",
+      }),
+    }))
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, limit)
+    .map(({ feature }) => feature);
+}
+
+export interface SpatialQueryOptions {
+  skipRadius?: boolean;
+}
+
+export async function runSpatialQuery(
+  intent: IntentQuery,
+  options: SpatialQueryOptions = {}
+): Promise<{
+  geojson: ParisFeatureCollection;
+  layers: ReturnType<typeof resolveLayers>;
+  center: [number, number];
+  radiusMeters: number;
+  totalFeatures: number;
+}> {
+  const layers = resolveLayers(intent);
+  const collection = await loadLayers(layers);
+  const center = resolveCenter(intent);
+  const radiusMeters = resolveRadius(intent);
+  const limit = intent.limit ?? DEFAULT_QUERY_LIMIT;
+
+  let features = filterByIntent(collection.features, intent);
+
+  if (!options.skipRadius) {
+    features = filterWithinRadius(features, center, radiusMeters);
+  }
+
+  features = rankFeatures(features, intent).slice(0, limit);
+
+  return {
+    geojson: { type: "FeatureCollection", features },
+    layers,
+    center,
+    radiusMeters,
+    totalFeatures: features.length,
+  };
+}
+
+export async function queryPlaces(params: {
+  type?: string;
+  layer?: string;
+  lat?: number;
+  lon?: number;
+  radius?: number;
+  accessible?: boolean;
+  limit?: number;
+}): Promise<ParisFeatureCollection> {
+  const intent: IntentQuery = {
+    lat: params.lat,
+    lon: params.lon,
+    radius: params.radius,
+    accessibility: params.accessible,
+    limit: params.limit,
+    layers: params.layer ? ([params.layer] as IntentQuery["layers"]) : undefined,
+  };
+
+  const { geojson } = await runSpatialQuery(intent, {
+    skipRadius: params.radius == null && params.lat == null,
+  });
+
+  if (params.type) {
+    geojson.features = geojson.features.filter(
+      (f) => f.properties.type === params.type
+    );
+  }
+
+  return geojson;
+}
