@@ -1,51 +1,53 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import {
-  CloudRain,
-  Database,
-  Layers,
-  Map,
-  Plus,
-  Radio,
-  Route,
-  Send,
-  Sparkles,
-  Wifi,
-  WifiOff,
-} from "lucide-react";
+import { useCallback, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import { AnimatePresence, motion } from "framer-motion";
+import type { Feature, LineString } from "geojson";
 import { LanguageProvider, useLanguage } from "@/components/app/LanguageProvider";
 import { LanguageSelector } from "@/components/app/LanguageSelector";
-import { ParisMapCanvas, type VisibleMapLayers } from "@/components/map/ParisMapCanvas";
-import type { BackendSource, ExperienceResponse } from "@/lib/experience-types";
-import {
-  sceneMapStateById,
-  scenes,
-  type Coordinate,
-  type SceneId,
-} from "@/lib/parisVisualizationData";
-import type { Messages } from "@/lib/i18n";
-import type { IntentQuery, LayerMeta, ParisFeature } from "@/lib/types";
+import ChatSheet, { type ChatMessage } from "@/features/chat/ChatSheet";
+import ExperienceCard from "@/features/experience/ExperienceCard";
+import { useSpeechSynthesis } from "@/features/voice/useSpeechSynthesis";
+import { MODE_PROMPTS, OPENING_CHIP_IDS } from "@/lib/mode-prompts";
+import type { ExperienceResult, IntentQuery, MapTheme } from "@/lib/types";
+import type { RouteResponse } from "@/services/routing/route-planner";
 
-type ApiStatus = "checking" | "worker" | "local" | "offline";
-type Message = {
-  id: string;
-  role: "user" | "assistant";
-  text: string;
+const MapCanvas = dynamic(() => import("@/features/map/MapCanvas"), {
+  ssr: false,
+  loading: () => (
+    <div className="absolute inset-0 grid place-items-center bg-cream">
+      <span className="font-display text-sm text-ink-soft">Waking Paris…</span>
+    </div>
+  ),
+});
+
+interface IntegratedChatResponse {
+  reply: string;
+  intent: IntentQuery;
+  result: ExperienceResult;
+  route: RouteResponse | null;
+  intentSource: "llm" | "heuristic";
+}
+
+const THEME_TINT: Record<MapTheme, string> = {
+  romantic:
+    "bg-[radial-gradient(ellipse_at_50%_30%,rgba(217,164,65,0.16),rgba(196,89,58,0.10)_60%,transparent)]",
+  rain: "bg-[linear-gradient(rgba(91,122,153,0.22),rgba(55,65,92,0.14))]",
+  family: "bg-[radial-gradient(ellipse_at_50%_30%,rgba(62,107,74,0.12),transparent_70%)]",
+  night: "bg-[linear-gradient(rgba(55,65,92,0.35),rgba(43,36,28,0.25))]",
+  day: "",
 };
 
-type StatusResponse = {
-  backendSource: BackendSource;
-  datasets: LayerMeta[];
-  warnings: string[];
-};
+const FOLLOWUP_CHIPS = [
+  "It's raining",
+  "We only have an hour",
+  "She's vegetarian",
+  "Make it wheelchair friendly",
+];
 
-const sceneIcons = {
-  "borrowed-senses": Radio,
-  "rainy-day": CloudRain,
-  "date-night": Sparkles,
-  "hidden-gems": Map,
-} satisfies Record<SceneId, typeof Route>;
+let messageId = 0;
+const nextId = () => `m${++messageId}`;
 
 export function LivingParisExperience() {
   return (
@@ -56,516 +58,164 @@ export function LivingParisExperience() {
 }
 
 function LivingParisExperienceInner() {
-  const { t, ready } = useLanguage();
-  const [activeSceneId, setActiveSceneId] = useState<SceneId>("date-night");
-  const [visibleLayers, setVisibleLayers] = useState<VisibleMapLayers>({
-    route: true,
-    places: true,
-    risk: true,
-    senses: true,
-  });
-  const [selectedVenueId, setSelectedVenueId] = useState<string | null>(null);
-  const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
-  const [apiStatus, setApiStatus] = useState<ApiStatus>("checking");
-  const [backendSource, setBackendSource] = useState<BackendSource | null>(null);
-  const [datasets, setDatasets] = useState<LayerMeta[]>([]);
-  const [experience, setExperience] = useState<ExperienceResponse | null>(null);
-  const [isThinking, setIsThinking] = useState(false);
-  const [isMapReady, setIsMapReady] = useState(false);
-  const [bootstrapped, setBootstrapped] = useState(false);
+  const { t, locale } = useLanguage();
+  const speechLang = locale === "fr" ? "fr-FR" : "en-US";
+  const { speak } = useSpeechSynthesis(speechLang);
 
-  const layerToggles = useMemo(
-    () =>
-      [
-        { id: "route" as const, label: t.layers.route, icon: Route },
-        { id: "places" as const, label: t.layers.places, icon: Map },
-        { id: "risk" as const, label: t.layers.signals, icon: Layers },
-        { id: "senses" as const, label: t.layers.senses, icon: Radio },
-      ] as const,
-    [t]
-  );
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: "welcome",
+      role: "paris",
+      text: t.messages.loading.split(".")[0] + ".",
+    },
+  ]);
+  const [thinking, setThinking] = useState(false);
+  const [result, setResult] = useState<ExperienceResult | null>(null);
+  const [routeGeometry, setRouteGeometry] = useState<Feature<LineString> | null>(null);
+  const [cardOpen, setCardOpen] = useState(true);
+  const [redrawing, setRedrawing] = useState(false);
+  const intentRef = useRef<IntentQuery | undefined>(undefined);
+  const abortRef = useRef<AbortController | null>(null);
+  const redrawTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const activeScene = t.scenes[activeSceneId];
-  const activeMapState = sceneMapStateById(activeSceneId);
-  const backendFeatures = experience?.spatial.geojson.features ?? [];
-  const routePath = useMemo(
-    () =>
-      experience?.route?.geometry.geometry.coordinates.map(
-        ([lon, lat]) => [lon, lat] as Coordinate
-      ),
-    [experience?.route]
-  );
-  const selectedFeature =
-    backendFeatures.find((feature) => feature.properties.id === selectedFeatureId) ??
-    backendFeatures[0] ??
-    null;
-  const selectedVenue =
-    activeMapState.venues.find((venue) => venue.id === selectedVenueId) ??
-    activeMapState.venues[0] ??
-    null;
-  const panelMetrics = experience
-    ? [
-        {
-          label: t.experience.backendMatches,
-          value: String(experience.spatial.totalFeatures),
-          tone: "places" as const,
-        },
-        {
-          label: experience.route?.provider ?? t.experience.queryRadius,
-          value: experience.route
-            ? `${experience.route.durationMinutes}m`
-            : `${Math.round(experience.spatial.meta.radiusMeters)}m`,
-          tone: "route" as const,
-        },
-        {
-          label: t.experience.queryTime,
-          value: `${experience.spatial.meta.queryMs}ms`,
-          tone: "senses" as const,
-        },
-      ]
-    : activeMapState.metrics;
+  const openingChips = OPENING_CHIP_IDS.map((id) => MODE_PROMPTS[id]);
 
-  const applyExperience = useCallback((payload: ExperienceResponse) => {
-    setExperience(payload);
-    setActiveSceneId(payload.sceneId);
-    setBackendSource(payload.backendSource);
-    setDatasets(payload.datasets);
-    setApiStatus(payload.backendSource === "worker" ? "worker" : "local");
-    setSelectedFeatureId(payload.spatial.geojson.features[0]?.properties.id ?? null);
-    setSelectedVenueId(null);
-  }, []);
+  const handleSend = useCallback(
+    async (text: string) => {
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
 
-  const resetChat = useCallback(() => {
-    setMessages([
-      {
-        id: `assistant-reset-${Date.now()}`,
-        role: "assistant",
-        text: t.messages.reset,
-      },
-    ]);
-    setInput("");
-    setExperience(null);
-    setSelectedFeatureId(null);
-    setSelectedVenueId(null);
-    setActiveSceneId("date-night");
-    setIsThinking(false);
-  }, [t.messages.reset]);
-
-  const runPrompt = useCallback(
-    async (userText: string, apiText = userText) => {
-      const trimmed = userText.trim();
-      if (!trimmed || isThinking) return;
-
-      const userMessage: Message = {
-        id: `user-${Date.now()}`,
-        role: "user",
-        text: trimmed,
-      };
-      setMessages((current) => [...current, userMessage]);
-      setInput("");
-      setIsThinking(true);
+      setMessages((prev) => [...prev, { id: nextId(), role: "user", text }]);
+      setThinking(true);
 
       try {
-        const response = await fetch("/api/chat", {
+        const history = messages
+          .filter((m) => m.id !== "welcome")
+          .map((m) => ({
+            role: (m.role === "user" ? "user" : "assistant") as "user" | "assistant",
+            content: m.text,
+          }));
+
+        const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: apiText, currentSceneId: activeSceneId }),
+          body: JSON.stringify({
+            message: text,
+            intent: intentRef.current,
+            history,
+            context: { lat: 48.8566, lon: 2.3522 },
+          }),
+          signal: controller.signal,
         });
 
-        if (!response.ok) {
-          throw new Error("Chat route failed");
-        }
+        if (!res.ok) throw new Error(`chat failed: ${res.status}`);
+        const data = (await res.json()) as IntegratedChatResponse;
 
-        const payload = (await response.json()) as ExperienceResponse;
-        applyExperience(payload);
-        setMessages((current) => [
-          ...current,
-          {
-            id: `assistant-${Date.now()}`,
-            role: "assistant",
-            text: payload.reply,
-          },
+        intentRef.current = data.intent;
+        setRedrawing(true);
+        setResult(data.result);
+        setRouteGeometry(data.route?.geometry ?? null);
+        setCardOpen(true);
+        setMessages((prev) => [
+          ...prev,
+          { id: nextId(), role: "paris", text: data.reply },
         ]);
-      } catch {
-        setApiStatus("offline");
-        setMessages((current) => [
-          ...current,
+        speak(data.reply, speechLang);
+
+        if (redrawTimerRef.current) clearTimeout(redrawTimerRef.current);
+        redrawTimerRef.current = setTimeout(() => setRedrawing(false), 2400);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setResult(null);
+        setRouteGeometry(null);
+        setRedrawing(false);
+        setMessages((prev) => [
+          ...prev,
           {
-            id: `assistant-${Date.now()}`,
-            role: "assistant",
+            id: nextId(),
+            role: "paris",
             text: t.messages.queryFailed,
           },
         ]);
       } finally {
-        setIsThinking(false);
+        if (abortRef.current === controller) {
+          setThinking(false);
+        }
       }
     },
-    [activeSceneId, applyExperience, isThinking, t.messages.queryFailed]
+    [messages, speak, speechLang, t.messages.queryFailed]
   );
 
-  useEffect(() => {
-    if (!ready || bootstrapped) return;
-
-    const controller = new AbortController();
-    const initialPrompt = t.promptChips[0]?.apiText ?? t.promptChips[0]?.userText;
-
-    async function loadInitialExperience() {
-      setMessages([
-        {
-          id: "assistant-initial",
-          role: "assistant",
-          text: t.messages.loading,
-        },
-      ]);
-
-      try {
-        const statusResponse = await fetch("/api/chat", {
-          cache: "no-store",
-          signal: controller.signal,
-        });
-
-        if (statusResponse.ok) {
-          const status = (await statusResponse.json()) as StatusResponse;
-          setBackendSource(status.backendSource);
-          setDatasets(status.datasets);
-          setApiStatus(status.backendSource === "worker" ? "worker" : "local");
-        }
-
-        const response = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: initialPrompt, currentSceneId: "date-night" }),
-          signal: controller.signal,
-        });
-
-        if (!response.ok) throw new Error("Initial backend query failed");
-
-        const payload = (await response.json()) as ExperienceResponse;
-        applyExperience(payload);
-        setMessages([
-          {
-            id: "assistant-initial",
-            role: "assistant",
-            text: t.messages.loading,
-          },
-          {
-            id: "assistant-backend-ready",
-            role: "assistant",
-            text: payload.reply,
-          },
-        ]);
-      } catch {
-        if (!controller.signal.aborted) {
-          setApiStatus("offline");
-          setMessages([
-            {
-              id: "assistant-initial",
-              role: "assistant",
-              text: t.messages.loading,
-            },
-            {
-              id: "assistant-backend-error",
-              role: "assistant",
-              text: t.messages.backendError,
-            },
-          ]);
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setBootstrapped(true);
-        }
-      }
-    }
-
-    void loadInitialExperience();
-
-    return () => controller.abort();
-  }, [applyExperience, bootstrapped, ready, t]);
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    void runPrompt(input);
-  };
-
-  const statusLabel = useMemo(() => {
-    if (apiStatus === "checking") return t.status.checking;
-    if (apiStatus === "worker") return t.status.worker;
-    if (apiStatus === "local") return t.status.local;
-    return t.status.offline;
-  }, [apiStatus, t.status]);
-
-  const StatusIcon = apiStatus === "offline" ? WifiOff : Wifi;
+  const theme: MapTheme = result?.mapState.theme ?? "day";
+  const hasStarted = messages.length > 1;
 
   return (
-    <main className="living-paris-team-app">
-      <ParisMapCanvas
-        backendFeatures={backendFeatures}
-        onFeatureSelect={setSelectedFeatureId}
-        queryCenter={experience?.spatial.meta.center}
-        queryRadiusMeters={experience?.spatial.meta.radiusMeters}
-        routePathOverride={routePath}
-        sceneId={activeSceneId}
-        selectedFeatureId={selectedFeature?.properties.id ?? null}
-        selectedVenueId={selectedVenue?.id ?? null}
-        visibleLayers={visibleLayers}
-        onReadyChange={setIsMapReady}
-      />
+    <main className="relative h-dvh w-full overflow-hidden bg-cream">
+      <MapCanvas mapState={result?.mapState ?? null} routeGeometry={routeGeometry} />
 
-      <header className="team-topbar">
-        <div className="brand-lockup">
-          <span className="brand-mark">LP</span>
-          <div>
-            <p className="eyebrow">{t.brand.eyebrow}</p>
-            <h1>{t.brand.title}</h1>
-          </div>
-        </div>
-        <div className="runtime-status">
-          <LanguageSelector />
-          <span className={apiStatus === "worker" ? "status-dot online" : "status-dot"} />
-          <StatusIcon size={15} aria-hidden="true" />
-          <span>{statusLabel}</span>
-          <span className="map-status">
-            {isMapReady ? t.status.mapReady : t.status.mapLoading}
-          </span>
-        </div>
-      </header>
-
-      <aside className="conversation-panel" aria-label={t.chat.panelTitle}>
-        <div className="panel-header">
-          <div>
-            <p className="eyebrow">{t.chat.panelEyebrow}</p>
-            <h2>{t.chat.panelTitle}</h2>
-          </div>
-          <button className="secondary-command" type="button" onClick={resetChat}>
-            <Plus size={16} aria-hidden="true" />
-            <span>{t.chat.newChat}</span>
-          </button>
-        </div>
-
-        <div className="message-list">
-          {messages.map((message) => (
-            <div className={`message-bubble ${message.role}`} key={message.id}>
-              {message.text}
-            </div>
-          ))}
-          {isThinking ? (
-            <div className="message-bubble assistant">{t.chat.thinking}</div>
-          ) : null}
-        </div>
-
-        <div className="quick-actions" aria-label={t.chat.panelEyebrow}>
-          {t.commonOptions.map((option, index) => {
-            const optionIcons = [Map, Sparkles, Layers, CloudRain, Route, Radio] as const;
-            const OptionIcon = optionIcons[index] ?? Map;
-            return (
-              <button
-                className="option-chip"
-                disabled={isThinking}
-                key={option.label}
-                type="button"
-                onClick={() => void runPrompt(option.userText, option.apiText)}
-              >
-                <span className="option-icon">
-                  <OptionIcon size={15} aria-hidden="true" />
-                </span>
-                <strong>{option.label}</strong>
-              </button>
-            );
-          })}
-        </div>
-
-        <details className="example-prompts">
-          <summary>{t.chat.examples}</summary>
-          <div className="example-list">
-            {t.promptChips.map((prompt) => (
-              <button
-                disabled={isThinking}
-                key={prompt.label}
-                type="button"
-                onClick={() => void runPrompt(prompt.userText, prompt.apiText)}
-              >
-                {prompt.userText}
-              </button>
-            ))}
-          </div>
-        </details>
-
-        <form className="composer" onSubmit={handleSubmit}>
-          <input
-            aria-label={t.chat.send}
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            placeholder={t.chat.placeholder}
+      <AnimatePresence>
+        {theme !== "day" && (
+          <motion.div
+            key={theme}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1.4 }}
+            className={`pointer-events-none absolute inset-0 ${THEME_TINT[theme]}`}
           />
-          <button
-            type="submit"
-            aria-label={t.chat.send}
-            disabled={isThinking || input.trim() === ""}
-          >
-            <Send size={17} aria-hidden="true" />
-          </button>
-        </form>
-      </aside>
+        )}
+      </AnimatePresence>
 
-      <aside className="experience-panel" aria-label={t.experience.panelLabel}>
-        <div className="scene-badge">
-          {(() => {
-            const SceneIcon = sceneIcons[activeSceneId];
-            return <SceneIcon size={18} aria-hidden="true" />;
-          })()}
-          <span>{activeScene.label}</span>
-        </div>
-        <h2>{activeScene.headline}</h2>
-        <p>{experience?.reply ?? activeMapState.reply}</p>
+      <div className="pointer-events-none absolute inset-0 shadow-[inset_0_0_120px_40px_rgba(43,36,28,0.10)]" />
 
-        <div className="backend-strip">
-          <span>
-            <Database size={14} aria-hidden="true" />
-            {datasets.length || experience?.datasets.length || 0} {t.experience.datasets}
-          </span>
-          <span>
-            {backendSource === "worker"
-              ? t.experience.workerBackend
-              : t.experience.localBackend}
-          </span>
-        </div>
-
-        <div className="intent-row">
-          {intentTokens(t, experience?.intent, experience?.spatial.layers).map((token) => (
-            <span key={`${token.label}-${token.value}`}>
-              {token.label}: {token.value}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col items-center gap-2 px-4 pt-[max(0.9rem,env(safe-area-inset-top))]">
+        <motion.div
+          initial={{ opacity: 0, y: -16 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="pointer-events-auto flex w-full max-w-md items-center justify-between gap-2 rounded-full bg-cream-soft/92 px-4 py-2 shadow-[var(--pill-shadow)] backdrop-blur-md sm:max-w-lg"
+        >
+          <div className="flex items-center gap-2">
+            <span className="grid h-5 w-5 place-items-center rounded-full bg-terracotta text-[10px] font-bold text-cream-soft">
+              P
             </span>
-          ))}
-        </div>
+            <span className="font-display text-[14px] font-semibold tracking-tight text-ink">
+              {t.brand.eyebrow}
+            </span>
+          </div>
+          <LanguageSelector />
+        </motion.div>
 
-        <div className="metric-grid">
-          {panelMetrics.map((metric) => (
-            <div className={`metric-card ${metric.tone}`} key={metric.label}>
-              <strong>{metric.value}</strong>
-              <span>{metric.label}</span>
-            </div>
-          ))}
-        </div>
-
-        <div className="stop-list">
-          {backendFeatures.length
-            ? backendFeatures.slice(0, 14).map((feature, index) => (
-                <button
-                  className={feature.properties.id === selectedFeature?.properties.id ? "active" : ""}
-                  key={feature.properties.id}
-                  type="button"
-                  onClick={() => setSelectedFeatureId(feature.properties.id)}
-                >
-                  <span>{index + 1}</span>
-                  <div>
-                    <strong>{feature.properties.name}</strong>
-                    <small>{featureMeta(t, feature)}</small>
-                  </div>
-                </button>
-              ))
-            : activeMapState.venues.map((venue) => (
-                <button
-                  className={venue.id === selectedVenue?.id ? "active" : ""}
-                  key={venue.id}
-                  type="button"
-                  onClick={() => setSelectedVenueId(venue.id)}
-                >
-                  <span>{venue.rank ?? "-"}</span>
-                  <div>
-                    <strong>{venue.name}</strong>
-                    <small>
-                      {venue.category}
-                      {venue.walkMinutes
-                        ? ` · ${venue.walkMinutes} ${t.experience.minWalk}`
-                        : ""}
-                    </small>
-                  </div>
-                </button>
-              ))}
-        </div>
-      </aside>
-
-      <nav className="scene-rail" aria-label={t.experience.panelLabel}>
-        {scenes.map((scene) => {
-          const SceneIcon = sceneIcons[scene.id];
-          const copy = t.scenes[scene.id];
-          return (
-            <button
-              className={scene.id === activeSceneId ? "active" : ""}
-              key={scene.id}
-              type="button"
-              onClick={() => void runPrompt(copy.command, copy.command)}
+        <AnimatePresence>
+          {redrawing && (
+            <motion.div
+              initial={{ opacity: 0, y: -8, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.95 }}
+              className="flex items-center gap-2 rounded-full bg-ink/85 px-3.5 py-1.5 backdrop-blur-sm"
             >
-              <SceneIcon size={17} aria-hidden="true" />
-              <span>{copy.label}</span>
-            </button>
-          );
-        })}
-      </nav>
+              <motion.span
+                className="h-1.5 w-1.5 rounded-full bg-gold"
+                animate={{ scale: [1, 1.5, 1] }}
+                transition={{ duration: 0.9, repeat: Infinity }}
+              />
+              <span className="text-[11.5px] font-medium text-cream-soft">
+                Paris is redrawing your view
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
-      <div className="layer-dock" aria-label={t.layers.places}>
-        {layerToggles.map((layer) => {
-          const LayerIcon = layer.icon;
-          const isActive = visibleLayers[layer.id];
-          return (
-            <button
-              className={isActive ? "active" : ""}
-              key={layer.id}
-              type="button"
-              aria-pressed={isActive}
-              onClick={() =>
-                setVisibleLayers((current) => ({
-                  ...current,
-                  [layer.id]: !current[layer.id],
-                }))
-              }
-            >
-              <LayerIcon size={16} aria-hidden="true" />
-              <span>{layer.label}</span>
-            </button>
-          );
-        })}
+      <div className="absolute inset-x-0 bottom-0 z-10 mx-auto flex w-full max-w-md flex-col justify-end sm:max-w-lg">
+        <ExperienceCard result={result} open={cardOpen} onToggle={() => setCardOpen((v) => !v)} />
+        <ChatSheet
+          messages={messages}
+          chips={hasStarted ? FOLLOWUP_CHIPS : openingChips}
+          thinking={thinking}
+          onSend={(text) => void handleSend(text)}
+        />
       </div>
     </main>
   );
-}
-
-function intentTokens(t: Messages, intent?: IntentQuery, layers?: string[]) {
-  if (!intent) {
-    return [
-      { label: t.intent.mode, value: t.intent.initializing },
-      { label: t.intent.layers, value: t.intent.sceneDefaults },
-    ];
-  }
-
-  const tokens = [
-    { label: t.intent.mood, value: intent.mood ?? t.intent.general },
-    { label: t.intent.layers, value: layers?.join(", ") ?? t.intent.auto },
-    { label: t.intent.walk, value: intent.walk ? `${intent.walk}m` : t.intent.auto },
-  ];
-
-  if (intent.budget) tokens.push({ label: t.intent.budget, value: `EUR ${intent.budget}` });
-  if (intent.accessibility) tokens.push({ label: t.intent.access, value: t.intent.stepFree });
-  if (intent.rainy) tokens.push({ label: t.intent.weather, value: t.intent.rainAware });
-
-  return tokens;
-}
-
-function featureMeta(t: Messages, feature: ParisFeature) {
-  const props = feature.properties;
-  const parts = [layerLabel(props.layer)];
-  if (props.address) parts.push(props.address);
-  if (props.arrondissement) parts.push(props.arrondissement);
-  if (props.indoor) parts.push(t.experience.indoor);
-  if (props.accessible) parts.push(t.experience.accessible);
-  return parts.join(" · ");
-}
-
-function layerLabel(layer: string) {
-  return layer
-    .split("-")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
 }
