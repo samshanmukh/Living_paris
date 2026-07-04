@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Fraunces, Inter } from "next/font/google";
+import "maplibre-gl/dist/maplibre-gl.css";
 import "./globals.css";
 
 const inter = Inter({
@@ -16,7 +17,7 @@ const fraunces = Fraunces({
 export const metadata: Metadata = {
   title: "Living Paris",
   description:
-    "Have a conversation with Paris, not a map. The city reshapes itself around what you want to do.",
+    "AI-powered city companion with conversation, spatial data, and a living 3D Paris map.",
 };
 
 export const viewport: Viewport = {
@@ -24,7 +25,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: "cover",
-  themeColor: "#f3ede2",
+  themeColor: "#07090d",
 };
 
 export default function RootLayout({

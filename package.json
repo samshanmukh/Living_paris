@@ -13,12 +13,16 @@
     "upload-data:remote": "node scripts/upload-r2-data.mjs --remote",
     "deploy:api": "wrangler deploy --env=\"\"",
     "deploy:api:production": "wrangler deploy --env production",
-    "test:api": "tsx --test tests/spatial-query.test.ts"
+    "test:api": "tsx --test tests/spatial-query.test.ts tests/parse-intent.test.ts"
   },
   "dependencies": {
+    "@deck.gl/core": "^9.3.6",
+    "@deck.gl/layers": "^9.3.6",
+    "@deck.gl/mapbox": "^9.3.6",
     "@turf/turf": "^7.3.5",
     "framer-motion": "^12.42.2",
     "hono": "^4.12.27",
+    "lucide-react": "^1.23.0",
     "maplibre-gl": "^5.24.0",
     "next": "16.2.10",
     "rbush": "^4.0.1",

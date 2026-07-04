@@ -26,11 +26,11 @@ const routeRequestSchema = z.object({
 });
 
 function createDataStore(env: Env): DataStore {
-  if (env.DATA) {
-    return createCachedDataStore(new R2DataStore(env.DATA));
-  }
   if (env.ASSETS) {
     return createCachedDataStore(new AssetsDataStore(env.ASSETS));
+  }
+  if (env.DATA) {
+    return createCachedDataStore(new R2DataStore(env.DATA));
   }
   throw new Error("No data binding configured (DATA or ASSETS)");
 }
