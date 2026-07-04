@@ -124,6 +124,10 @@ function inferSceneId(message: string, currentSceneId?: SceneId): SceneId {
   }
 
   if (
+    normalized.includes("places to see") ||
+    normalized.includes("things to do") ||
+    normalized.includes("sightseeing") ||
+    normalized.includes("must see") ||
     normalized.includes("hidden") ||
     normalized.includes("quiet") ||
     normalized.includes("local") ||
@@ -148,6 +152,12 @@ function inferSceneId(message: string, currentSceneId?: SceneId): SceneId {
 
 function buildIntent(message: string, sceneId: SceneId): IntentQuery {
   const normalized = message.toLowerCase();
+  const isPlacesToSeeQuery =
+    normalized.includes("places to see") ||
+    normalized.includes("things to do") ||
+    normalized.includes("sightseeing") ||
+    normalized.includes("must see") ||
+    normalized.includes("viewpoint");
   const scene = sceneById(sceneId);
   const [lon, lat] = scene.center;
   const budget = parseBudget(normalized);
@@ -193,12 +203,22 @@ function buildIntent(message: string, sceneId: SceneId): IntentQuery {
     intent.layers = ["parks", "museums", "metro"];
   }
 
+  if (isPlacesToSeeQuery) {
+    intent.mood = "photography";
+    intent.layers = ["museums", "parks", "trees"];
+    intent.walk = walk ?? 20;
+    intent.limit = 32;
+  }
+
   if (normalized.includes("food") || normalized.includes("restaurant") || normalized.includes("cafe")) {
     intent.mood = "food";
     intent.layers = ["cafes"];
   }
 
-  if (normalized.includes("museum") || normalized.includes("art") || normalized.includes("culture")) {
+  if (
+    !isPlacesToSeeQuery &&
+    (normalized.includes("museum") || normalized.includes("art") || normalized.includes("culture"))
+  ) {
     intent.mood = "culture";
     intent.layers = ["museums"];
   }

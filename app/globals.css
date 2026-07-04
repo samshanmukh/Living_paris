@@ -213,6 +213,7 @@ button {
 }
 
 .icon-button,
+.secondary-command,
 .composer button,
 .prompt-grid button,
 .scene-rail button,
@@ -235,6 +236,19 @@ button {
   flex: 0 0 auto;
   place-items: center;
   border-radius: 8px;
+}
+
+.secondary-command {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 7px;
+  border-radius: 8px;
+  padding: 0 10px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .message-list {
@@ -275,13 +289,49 @@ button {
 }
 
 .prompt-grid button {
-  min-height: 58px;
+  min-height: 44px;
   border-radius: 8px;
   padding: 9px;
   color: var(--muted);
   font-size: 12px;
   line-height: 1.35;
   text-align: left;
+}
+
+.prompt-grid button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.option-chip {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+.option-chip strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.option-icon {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 7px;
+  background: rgba(108, 229, 255, 0.13);
+  color: var(--cyan);
+}
+
+.prompt-chip {
+  grid-column: span 2;
 }
 
 .composer {
@@ -313,8 +363,9 @@ button {
 }
 
 .icon-button:hover,
+.secondary-command:hover,
 .composer button:not(:disabled):hover,
-.prompt-grid button:hover,
+.prompt-grid button:not(:disabled):hover,
 .scene-rail button:hover,
 .layer-dock button:hover,
 .stop-list button:hover {

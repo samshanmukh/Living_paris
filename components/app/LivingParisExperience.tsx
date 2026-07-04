@@ -6,7 +6,7 @@ import {
   Database,
   Layers,
   Map,
-  Mic,
+  Plus,
   Radio,
   Route,
   Send,
@@ -63,6 +63,39 @@ const promptChips = [
   "It is raining and I have two hours before my train.",
   "Show me quiet local places tourists miss.",
   "I am blind near the Eiffel Tower. Take me to Trocadero."
+];
+
+const commonOptions = [
+  {
+    label: "Places to see",
+    prompt: "Show me places to see near central Paris: museums, parks, and scenic viewpoints.",
+    icon: Map
+  },
+  {
+    label: "Cafes",
+    prompt: "Find good cafes nearby with a short walk.",
+    icon: Sparkles
+  },
+  {
+    label: "Museums",
+    prompt: "Show me museums and art places I can visit today.",
+    icon: Layers
+  },
+  {
+    label: "Rain plan",
+    prompt: "It is raining. Find indoor places and metro-friendly stops.",
+    icon: CloudRain
+  },
+  {
+    label: "Accessible route",
+    prompt: "Find accessible places and build a step-free walking route.",
+    icon: Route
+  },
+  {
+    label: "Local gems",
+    prompt: "Show me quiet local places tourists usually miss.",
+    icon: Radio
+  }
 ];
 
 const initialPrompt = promptChips[0];
@@ -143,6 +176,23 @@ export function LivingParisExperience() {
     setApiStatus(payload.backendSource === "worker" ? "worker" : "local");
     setSelectedFeatureId(payload.spatial.geojson.features[0]?.properties.id ?? null);
     setSelectedVenueId(null);
+  }, []);
+
+  const resetChat = useCallback(() => {
+    setMessages([
+      {
+        id: `assistant-reset-${Date.now()}`,
+        role: "assistant",
+        text:
+          "New chat started. Pick a common option or describe what you want to do in Paris."
+      }
+    ]);
+    setInput("");
+    setExperience(null);
+    setSelectedFeatureId(null);
+    setSelectedVenueId(null);
+    setActiveSceneId("date-night");
+    setIsThinking(false);
   }, []);
 
   useEffect(() => {
@@ -305,8 +355,9 @@ export function LivingParisExperience() {
             <p className="eyebrow">Ask the city</p>
             <h2>Chat interface</h2>
           </div>
-          <button className="icon-button" type="button" aria-label="Voice input">
-            <Mic size={17} aria-hidden="true" />
+          <button className="secondary-command" type="button" onClick={resetChat}>
+            <Plus size={16} aria-hidden="true" />
+            <span>New chat</span>
           </button>
         </div>
 
@@ -322,8 +373,31 @@ export function LivingParisExperience() {
         </div>
 
         <div className="prompt-grid" aria-label="Suggested prompts">
+          {commonOptions.map((option) => {
+            const OptionIcon = option.icon;
+            return (
+              <button
+                className="option-chip"
+                disabled={isThinking}
+                key={option.label}
+                type="button"
+                onClick={() => void runPrompt(option.prompt)}
+              >
+                <span className="option-icon">
+                  <OptionIcon size={15} aria-hidden="true" />
+                </span>
+                <strong>{option.label}</strong>
+              </button>
+            );
+          })}
           {promptChips.map((prompt) => (
-            <button key={prompt} type="button" onClick={() => void runPrompt(prompt)}>
+            <button
+              className="prompt-chip"
+              disabled={isThinking}
+              key={prompt}
+              type="button"
+              onClick={() => void runPrompt(prompt)}
+            >
               {prompt}
             </button>
           ))}

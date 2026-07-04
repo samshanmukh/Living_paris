@@ -5,7 +5,6 @@ import maplibregl from "maplibre-gl";
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import {
   ArcLayer,
-  ColumnLayer,
   PathLayer,
   PolygonLayer,
   ScatterplotLayer,
@@ -300,24 +299,56 @@ function buildMapLayers({
   if (visibleLayers.places) {
     if (backendFeatures.length) {
       layers.push(
-        new ColumnLayer<ParisFeature>({
-          id: "backend-feature-columns",
+        new PolygonLayer<ParisFeature>({
+          id: "backend-feature-halos",
           data: backendFeatures,
-          diskResolution: 24,
-          radius: 22,
-          getPosition: featurePosition,
-          getElevation: (feature) =>
-            (feature.properties.scoreHint ?? 8) * (feature.properties.id === selectedFeatureId ? 18 : 10),
-          getFillColor: (feature) => featureColor(feature, feature.properties.id === selectedFeatureId, accent),
-          getLineColor: [255, 255, 255, 170],
-          getLineWidth: 1,
+          getPolygon: (feature) =>
+            makeCircle(
+              featurePosition(feature),
+              feature.properties.id === selectedFeatureId ? 58 : 34,
+              44
+            ),
+          getFillColor: (feature) =>
+            withAlpha(
+              featureColor(feature, feature.properties.id === selectedFeatureId, accent),
+              feature.properties.id === selectedFeatureId ? 82 : 38
+            ),
+          getLineColor: (feature) =>
+            withAlpha(
+              featureColor(feature, feature.properties.id === selectedFeatureId, accent),
+              feature.properties.id === selectedFeatureId ? 230 : 132
+            ),
+          getLineWidth: (feature) => (feature.properties.id === selectedFeatureId ? 2.4 : 1.2),
           lineWidthUnits: "pixels",
+          filled: true,
+          stroked: true,
           pickable: true,
           onClick: ({ object }) => {
             if (!object) return false;
             onFeatureSelect?.(object.properties.id);
             return true;
           }
+        }),
+        new PolygonLayer<ParisFeature>({
+          id: "backend-feature-pulse-rings",
+          data: backendFeatures.slice(0, 16),
+          getPolygon: (feature) =>
+            makeCircle(
+              featurePosition(feature),
+              (feature.properties.id === selectedFeatureId ? 76 : 46) * pulseScale,
+              52
+            ),
+          getFillColor: [0, 0, 0, 0],
+          getLineColor: (feature) =>
+            withAlpha(
+              featureColor(feature, feature.properties.id === selectedFeatureId, accent),
+              feature.properties.id === selectedFeatureId ? 178 : 78
+            ),
+          getLineWidth: (feature) => (feature.properties.id === selectedFeatureId ? 2 : 1),
+          lineWidthUnits: "pixels",
+          filled: false,
+          stroked: true,
+          pickable: false
         }),
         new ScatterplotLayer<ParisFeature>({
           id: "backend-feature-points",
@@ -357,23 +388,24 @@ function buildMapLayers({
     }
 
     layers.push(
-      new ColumnLayer<Venue>({
-        id: "team-venue-pillars",
+      new PolygonLayer<Venue>({
+        id: "team-venue-halos",
         data: backendFeatures.length ? [] : venues,
-        diskResolution: 28,
-        radius: 26,
-        getPosition: (venue) => venue.coordinate,
-        getElevation: (venue) =>
-          Math.max(40, venue.score * (venue.id === selectedVenueId ? 2.1 : 1.55)),
+        getPolygon: (venue) => makeCircle(venue.coordinate, venue.id === selectedVenueId ? 58 : 36, 44),
         getFillColor: (venue) => [
           accent[0],
           accent[1],
           accent[2],
-          venue.id === selectedVenueId ? 235 : 168
+          venue.id === selectedVenueId ? 80 : 38
         ],
-        getLineColor: [255, 255, 255, 180],
-        getLineWidth: 1,
+        getLineColor: (venue) =>
+          venue.id === selectedVenueId
+            ? [accent[0], accent[1], accent[2], 230]
+            : [255, 255, 255, 120],
+        getLineWidth: (venue) => (venue.id === selectedVenueId ? 2.2 : 1.1),
         lineWidthUnits: "pixels",
+        filled: true,
+        stroked: true,
         pickable: false
       }),
       new ScatterplotLayer<Venue>({
@@ -438,6 +470,13 @@ function featureColor(
     default:
       return [accent[0], accent[1], accent[2], 210];
   }
+}
+
+function withAlpha(
+  color: [number, number, number, number],
+  alpha: number
+): [number, number, number, number] {
+  return [color[0], color[1], color[2], alpha];
 }
 
 function featurePosition(feature: ParisFeature): Coordinate {
