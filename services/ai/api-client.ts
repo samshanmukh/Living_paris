@@ -1,8 +1,10 @@
 import type { IntentInput } from "@/lib/intent-schema";
 import type { SpatialQueryResult } from "@/lib/types";
 
+const DEFAULT_API_URL = "https://living-paris-api.living-paris.workers.dev";
+
 function getApiBaseUrl(): string {
-  return process.env.API_URL?.trim() || "http://localhost:8787";
+  return process.env.API_URL?.trim() || DEFAULT_API_URL;
 }
 
 export async function postSpatialQuery(

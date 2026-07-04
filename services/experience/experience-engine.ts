@@ -26,7 +26,7 @@ type ExperienceRequest = {
   currentSceneId?: SceneId;
 };
 
-const DEFAULT_API_URL = "http://localhost:8787";
+const DEFAULT_API_URL = "https://living-paris-api.living-paris.workers.dev";
 const sceneIds = new Set<SceneId>([
   "borrowed-senses",
   "rainy-day",
