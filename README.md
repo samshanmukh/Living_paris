@@ -495,6 +495,8 @@ npm run dev
 | `GET` | `/api/places?layer=cafes&radius=800&lat=48.86&lon=2.35` | Filtered places query |
 | `POST` | `/api/spatial/query` | **Main endpoint** — AI intent JSON → GeoJSON for map |
 | `GET` | `/api/spatial/query` | Schema documentation |
+| `POST` | `/api/routes` | Walking route + camera path between waypoints |
+| `GET` | `/api/routes` | Route API documentation |
 
 ## Spatial Query (for AI + Maps teams)
 

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-04T19:33:09.448Z",
+  "updatedAt": "2026-07-04T19:46:45.035Z",
   "layers": [
     {
       "id": "cafes",
@@ -18,7 +18,7 @@
     },
     {
       "id": "parks",
-      "featureCount": 35,
+      "featureCount": 180,
       "path": "/data/parks.geojson"
     },
     {
@@ -28,22 +28,22 @@
     },
     {
       "id": "museums",
-      "featureCount": 12,
+      "featureCount": 92,
       "path": "/data/museums.geojson"
     },
     {
       "id": "metro",
-      "featureCount": 16,
+      "featureCount": 265,
       "path": "/data/metro.geojson"
     },
     {
       "id": "noise",
-      "featureCount": 10,
+      "featureCount": 15,
       "path": "/data/noise.geojson"
     },
     {
       "id": "air-quality",
-      "featureCount": 8,
+      "featureCount": 7,
       "path": "/data/air-quality.geojson"
     }
   ]

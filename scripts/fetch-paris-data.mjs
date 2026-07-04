@@ -3,24 +3,41 @@ import path from "node:path";
 
 const DATA_DIR = path.join(process.cwd(), "public", "data");
 const PARIS_API = "https://opendata.paris.fr/api/explore/v2.1/catalog/datasets";
+const IDFM_API =
+  "https://data.iledefrance-mobilites.fr/api/explore/v2.1/catalog/datasets";
 
-async function fetchRecords(datasetId, { limit = 100, offset = 0, where } = {}) {
+const PARIS_BOUNDS = {
+  minLon: 2.249,
+  maxLon: 2.421,
+  minLat: 48.815,
+  maxLat: 48.902,
+};
+
+async function fetchRecordsFrom(baseUrl, datasetId, { limit = 100, offset = 0, where } = {}) {
   const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
   if (where) params.set("where", where);
 
-  const url = `${PARIS_API}/${datasetId}/records?${params}`;
+  const url = `${baseUrl}/${datasetId}/records?${params}`;
   const res = await fetch(url, { headers: { Accept: "application/json" } });
   if (!res.ok) throw new Error(`Failed ${datasetId}: ${res.status}`);
   return res.json();
 }
 
-async function fetchAll(datasetId, { pageSize = 100, maxRecords = 2000, where } = {}) {
+async function fetchRecords(datasetId, opts) {
+  return fetchRecordsFrom(PARIS_API, datasetId, opts);
+}
+
+async function fetchIdfmRecords(datasetId, opts) {
+  return fetchRecordsFrom(IDFM_API, datasetId, opts);
+}
+
+async function fetchAllFrom(fetchFn, datasetId, { pageSize = 100, maxRecords = 2000, where } = {}) {
   const all = [];
   let offset = 0;
   let total = Infinity;
 
   while (offset < total && all.length < maxRecords) {
-    const batch = await fetchRecords(datasetId, {
+    const batch = await fetchFn(datasetId, {
       limit: Math.min(pageSize, maxRecords - all.length),
       offset,
       where,
@@ -32,6 +49,38 @@ async function fetchAll(datasetId, { pageSize = 100, maxRecords = 2000, where } 
   }
 
   return all;
+}
+
+async function fetchAll(datasetId, opts) {
+  return fetchAllFrom(fetchRecords, datasetId, opts);
+}
+
+async function fetchAllIdfm(datasetId, opts) {
+  return fetchAllFrom(fetchIdfmRecords, datasetId, opts);
+}
+
+function isInParis(lon, lat) {
+  return (
+    lon >= PARIS_BOUNDS.minLon &&
+    lon <= PARIS_BOUNDS.maxLon &&
+    lat >= PARIS_BOUNDS.minLat &&
+    lat <= PARIS_BOUNDS.maxLat
+  );
+}
+
+function parseAccessibilityField(raw) {
+  if (!raw) return false;
+  try {
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    const handicaps = parsed.handicaps ?? [];
+    return handicaps.some(
+      (h) =>
+        h.status === "true" ||
+        /mobilit|pmr|fauteuil|wheelchair/i.test(h.name ?? "")
+    );
+  } catch {
+    return false;
+  }
 }
 
 function writeGeoJSON(filename, collection) {
@@ -141,8 +190,14 @@ async function buildTrees() {
 }
 
 async function buildParks() {
-  console.log("Fetching community gardens...");
-  const records = await fetchAll("jardins-relais", { maxRecords: 100 });
+  console.log("Fetching parks and gardens...");
+  const [relaisRecords, parcRecords] = await Promise.all([
+    fetchAll("jardins-relais", { maxRecords: 100 }),
+    fetchAll("lieux-municipaux", {
+      maxRecords: 200,
+      where: "categorie = 'Parcs, jardins et bois'",
+    }),
+  ]);
 
   const curated = [
     ["park-luxembourg", "Jardin du Luxembourg", 2.3372, 48.8462, "6e"],
@@ -155,8 +210,10 @@ async function buildParks() {
     ["park-villette", "Parc de la Villette", 2.3934, 48.8938, "19e"],
   ];
 
+  const seen = new Set();
+
   const features = [
-    ...records
+    ...relaisRecords
       .filter((r) => r.geo_point_2d?.lon && r.geo_point_2d?.lat)
       .map((r, i) =>
         pointFeature(`park-relais-${r.idt ?? i}`, r.geo_point_2d.lon, r.geo_point_2d.lat, {
@@ -175,6 +232,25 @@ async function buildParks() {
           source: "opendata.paris.fr/jardins-relais",
         })
       ),
+    ...parcRecords
+      .filter((r) => r.longitude && r.latitude)
+      .map((r) =>
+        pointFeature(`park-municipal-${r.id}`, r.longitude, r.latitude, {
+          id: `park-municipal-${r.id}`,
+          name: r.name,
+          layer: "parks",
+          type: "park",
+          address: r.address_street,
+          arrondissement: arrondissementFromPostal(r.address_postcode),
+          familyFriendly: true,
+          quiet: true,
+          romantic: /luxembourg|monceau|buttes|tuileries/i.test(r.name ?? ""),
+          accessible: parseAccessibilityField(r.accessibility),
+          indoor: false,
+          tags: ["park", "municipal"],
+          source: "opendata.paris.fr/lieux-municipaux",
+        })
+      ),
     ...curated.map(([id, name, lon, lat, arr]) =>
       pointFeature(id, lon, lat, {
         id,
@@ -191,7 +267,12 @@ async function buildParks() {
         source: "curated-paris-parks",
       })
     ),
-  ];
+  ].filter((f) => {
+    const key = `${f.properties.name}-${f.geometry.coordinates.join(",")}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 
   return { type: "FeatureCollection", features };
 }
@@ -246,137 +327,224 @@ async function buildAccessibility() {
   return { type: "FeatureCollection", features };
 }
 
-function buildMuseums() {
-  const museums = [
-    ["louvre", "Musée du Louvre", 2.3376, 48.8606, "1er", true, "high"],
-    ["orsay", "Musée d'Orsay", 2.3266, 48.86, "7e", true, "medium"],
-    ["pompidou", "Centre Pompidou", 2.3522, 48.8607, "4e", true, "medium"],
-    ["rodin", "Musée Rodin", 2.3158, 48.8553, "7e", true, "medium"],
-    ["orsay", "Musée de l'Orangerie", 2.3225, 48.8638, "1er", true, "medium"],
-    ["carnavalet", "Musée Carnavalet", 2.3622, 48.8573, "3e", true, "low"],
-    ["cluny", "Musée de Cluny", 2.344, 48.8503, "5e", true, "medium"],
-    ["picasso", "Musée Picasso", 2.3625, 48.8597, "3e", true, "medium"],
-    ["petit-palais", "Petit Palais", 2.3146, 48.8661, "8e", true, "low"],
-    ["invalides", "Musée de l'Armée", 2.3126, 48.8567, "7e", true, "medium"],
-    ["science", "Cité des Sciences", 2.3878, 48.8956, "19e", true, "medium"],
-    ["quai-branly", "Musée du Quai Branly", 2.2978, 48.8609, "7e", true, "high"],
+async function buildMuseums() {
+  console.log("Fetching museums and cultural venues...");
+  const categories = [
+    "Musées municipaux",
+    "Théâtres et établissements culturels soutenus",
+    "Lieux de decouverte et d initiation",
   ];
 
-  const features = museums.map(([id, name, lon, lat, arr, indoor, budget], i) =>
-    pointFeature(`museum-${id}-${i}`, lon, lat, {
-      id: `museum-${id}-${i}`,
-      name,
-      layer: "museums",
-      type: "museum",
-      arrondissement: arr,
-      indoor: indoor,
-      accessible: true,
-      familyFriendly: ["science", "carnavalet", "petit-palais"].includes(id),
-      romantic: ["rodin", "orsay", "petit-palais"].includes(id),
-      quiet: true,
-      budgetLevel: budget,
-      tags: ["museum", "culture", "indoor"],
-      source: "curated-paris-museums",
-    })
-  );
+  const records = (
+    await Promise.all(
+      categories.map((categorie) =>
+        fetchAll("lieux-municipaux", {
+          maxRecords: 200,
+          where: `categorie = '${categorie.replace(/'/g, "''")}'`,
+        })
+      )
+    )
+  ).flat();
+
+  const nationalSupplement = [
+    ["louvre", "Musée du Louvre", 2.3376, 48.8606, "high"],
+    ["orsay", "Musée d'Orsay", 2.3266, 48.86, "medium"],
+    ["pompidou", "Centre Pompidou", 2.3522, 48.8607, "medium"],
+    ["rodin", "Musée Rodin", 2.3158, 48.8553, "medium"],
+    ["orangerie", "Musée de l'Orangerie", 2.3225, 48.8638, "medium"],
+    ["quai-branly", "Musée du Quai Branly", 2.2978, 48.8609, "high"],
+    ["invalides", "Musée de l'Armée", 2.3126, 48.8567, "medium"],
+    ["science", "Cité des Sciences et de l'Industrie", 2.3878, 48.8956, "medium"],
+  ];
+
+  const seen = new Set();
+
+  const features = [
+    ...records
+      .filter((r) => r.longitude && r.latitude)
+      .map((r) => {
+        const accessible = parseAccessibilityField(r.accessibility);
+        const isMuseum = /musée|museum/i.test(r.categorie ?? "") || /musée|museum/i.test(r.name ?? "");
+        return pointFeature(`culture-${r.id}`, r.longitude, r.latitude, {
+          id: `culture-${r.id}`,
+          name: r.name,
+          layer: "museums",
+          type: isMuseum ? "museum" : "cultural-venue",
+          address: r.address_street,
+          arrondissement: arrondissementFromPostal(r.address_postcode),
+          indoor: true,
+          accessible,
+          familyFriendly: /découverte|science|enfant|famil/i.test(r.name ?? ""),
+          romantic: /rodin|petit|orangerie|romant/i.test(r.name ?? ""),
+          quiet: true,
+          budgetLevel: /municipal|petit|carnavalet/i.test(r.name ?? "") ? "low" : "medium",
+          tags: ["culture", isMuseum ? "museum" : "venue", r.categorie?.toLowerCase?.()].filter(Boolean),
+          source: "opendata.paris.fr/lieux-municipaux",
+        });
+      }),
+    ...nationalSupplement.map(([id, name, lon, lat, budget]) =>
+      pointFeature(`museum-national-${id}`, lon, lat, {
+        id: `museum-national-${id}`,
+        name,
+        layer: "museums",
+        type: "museum",
+        indoor: true,
+        accessible: true,
+        familyFriendly: id === "science",
+        romantic: ["rodin", "orangerie"].includes(id),
+        quiet: true,
+        budgetLevel: budget,
+        tags: ["museum", "culture", "indoor", "national"],
+        source: "supplement-national-museums",
+      })
+    ),
+  ].filter((f) => {
+    const key = f.properties.name?.toLowerCase?.() ?? f.properties.id;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 
   return { type: "FeatureCollection", features };
 }
 
-function buildMetro() {
-  const stations = [
-    ["chatelet", "Châtelet", 2.347, 48.8583, ["1", "4", "7", "11", "14"]],
-    ["gare-du-nord", "Gare du Nord", 2.3553, 48.8809, ["4", "5", "RER B", "RER D"]],
-    ["gare-de-lyon", "Gare de Lyon", 2.3735, 48.8448, ["1", "14", "RER A", "RER D"]],
-    ["republique", "République", 2.3631, 48.8676, ["3", "5", "8", "9", "11"]],
-    ["bastille", "Bastille", 2.3686, 48.853, ["1", "5", "8"]],
-    ["trocadero", "Trocadéro", 2.2876, 48.8624, ["6", "9"]],
-    ["montparnasse", "Montparnasse", 2.3212, 48.8422, ["4", "6", "12", "13"]],
-    ["nation", "Nation", 2.3957, 48.8484, ["1", "2", "6", "9"]],
-    ["oberkampf", "Oberkampf", 2.3795, 48.865, ["5", "9"]],
-    ["pigalle", "Pigalle", 2.3372, 48.882, ["2", "12"]],
-    ["saint-michel", "Saint-Michel", 2.3444, 48.8534, ["4", "RER B", "RER C"]],
-    ["concorde", "Concorde", 2.3212, 48.8656, ["1", "8", "12"]],
-    ["louvre-rivoli", "Louvre — Rivoli", 2.3417, 48.8606, ["1"]],
-    ["bir-hakeim", "Bir-Hakeim", 2.2893, 48.8534, ["6"]],
-    ["denfert", "Denfert-Rochereau", 2.3324, 48.8338, ["4", "6", "RER B"]],
-    ["gare-austerlitz", "Gare d'Austerlitz", 2.3649, 48.8422, ["5", "10", "RER C"]],
-  ];
+async function buildMetro() {
+  console.log("Fetching Paris metro stations from IDFM...");
+  const records = await fetchAllIdfm("arrets", {
+    maxRecords: 1000,
+    where: "arrtype = 'metro'",
+  });
 
-  const features = stations.map(([id, name, lon, lat, lines]) =>
-    pointFeature(`metro-${id}`, lon, lat, {
-      id: `metro-${id}`,
-      name,
+  const byName = new Map();
+
+  for (const r of records) {
+    const lon = r.arrgeopoint?.lon;
+    const lat = r.arrgeopoint?.lat;
+    if (lon == null || lat == null || !isInParis(lon, lat)) continue;
+
+    const name = r.arrname;
+    const existing = byName.get(name);
+    const accessible = r.arraccessibility === "true";
+
+    if (!existing || (accessible && !existing.accessible)) {
+      byName.set(name, { ...r, lon, lat, accessible });
+    }
+  }
+
+  const features = [...byName.values()].map((r) =>
+    pointFeature(`metro-${r.arrid}`, r.lon, r.lat, {
+      id: `metro-${r.arrid}`,
+      name: r.arrname,
       layer: "metro",
       type: "metro-station",
       indoor: true,
-      accessible: ["chatelet", "gare-du-nord", "gare-de-lyon", "montparnasse"].includes(id),
+      accessible: r.accessible,
       familyFriendly: true,
-      tags: ["metro", "transport", ...lines.map((l) => `line-${l}`)],
-      source: "curated-ratp-stations",
+      tags: ["metro", "transport", `zone-${r.arrfarezone ?? "?"}`],
+      source: "data.iledefrance-mobilites.fr/arrets",
     })
   );
 
   return { type: "FeatureCollection", features };
 }
 
-function buildNoise() {
-  const stations = [
-    ["noise-auteuil", "Auteuil", 2.263, 48.847, 87.1],
-    ["noise-vincennes", "Porte de Vincennes", 2.413, 48.848, 83.4],
-    ["noise-soulie", "Rue Soulie", 2.389, 48.832, 78.9],
-    ["noise-sebastopol", "Sébastopol", 2.349, 48.867, 77.9],
-    ["noise-anatole", "Anatole France", 2.275, 48.858, 76.9],
-    ["noise-rivoli", "Rivoli", 2.329, 48.857, 76.6],
-    ["noise-stmichel", "Saint-Michel", 2.344, 48.853, 74.6],
-    ["noise-luxembourg", "Luxembourg (quiet)", 2.337, 48.846, 62.0],
-    ["noise-buttes", "Buttes-Chaumont (quiet)", 2.383, 48.881, 58.5],
-    ["noise-marais", "Le Marais (moderate)", 2.362, 48.857, 68.0],
-  ];
+const NOISE_STATION_COORDS = {
+  auteuil: { name: "Auteuil", lon: 2.263, lat: 48.847 },
+  vincennes: { name: "Porte de Vincennes", lon: 2.413, lat: 48.848 },
+  malesherbes: { name: "Malesherbes", lon: 2.309, lat: 48.879 },
+  courcelles: { name: "Courcelles", lon: 2.304, lat: 48.879 },
+  soulie: { name: "Rue Soulie", lon: 2.389, lat: 48.832 },
+  poissoniere: { name: "Poissonnière", lon: 2.348, lat: 48.871 },
+  sebastopol: { name: "Sébastopol", lon: 2.349, lat: 48.867 },
+  anatolefrance: { name: "Anatole France", lon: 2.275, lat: 48.858 },
+  rivoli: { name: "Rivoli", lon: 2.329, lat: 48.857 },
+  gesvres: { name: "Gesvres", lon: 2.348, lat: 48.857 },
+  stgermain: { name: "Saint-Germain", lon: 2.333, lat: 48.854 },
+  stmichel: { name: "Saint-Michel", lon: 2.344, lat: 48.853 },
+  bastille: { name: "Bastille", lon: 2.369, lat: 48.853 },
+  fremicourt: { name: "Frémicourt", lon: 2.301, lat: 48.842 },
+  lecourbe: { name: "Lecourbe", lon: 2.301, lat: 48.842 },
+};
 
-  const features = stations.map(([id, name, lon, lat, db]) =>
-    pointFeature(id, lon, lat, {
-      id,
-      name,
-      layer: "noise",
-      type: "noise-station",
-      noiseLevel: db,
-      quiet: db < 65,
-      romantic: db < 65,
-      indoor: false,
-      tags: ["noise", db < 65 ? "quiet" : db < 75 ? "moderate" : "loud"],
-      source: "opendata.paris.fr/bruit-evolution + curated",
-    })
+async function buildNoise() {
+  console.log("Building noise monitoring layer...");
+  const records = await fetchAll(
+    "bruit-evolution-de-l-indice-du-bruit-mesure-sur-des-stations-parisiennes",
+    { maxRecords: 20 }
   );
+
+  const latest = records.sort((a, b) => Number(b.annee) - Number(a.annee))[0] ?? {};
+  const features = [];
+
+  for (const [key, coords] of Object.entries(NOISE_STATION_COORDS)) {
+    const dayKey = `lden_bruit_routier_${key}`;
+    const nightKey = `ln_bruit_routier_${key}`;
+    const dayDb = latest[dayKey];
+    const nightDb = latest[nightKey];
+    const db = dayDb ?? nightDb;
+
+    if (db == null) continue;
+
+    features.push(
+      pointFeature(`noise-${key}`, coords.lon, coords.lat, {
+        id: `noise-${key}`,
+        name: coords.name,
+        layer: "noise",
+        type: "noise-station",
+        noiseLevel: db,
+        quiet: db < 65,
+        romantic: db < 65,
+        indoor: false,
+        tags: ["noise", db < 65 ? "quiet" : db < 75 ? "moderate" : "loud"],
+        source: "opendata.paris.fr/bruit-evolution",
+      })
+    );
+  }
 
   return { type: "FeatureCollection", features };
 }
 
-function buildAirQuality() {
-  const stations = [
-    ["aq-belleville", "Parc de Belleville", 2.384, 48.872, 42],
-    ["aq-pere-lachaise", "Père Lachaise", 2.393, 48.861, 38],
-    ["aq-menilmontant", "Ménilmontant", 2.389, 48.866, 45],
-    ["aq-pyrenées", "Rue des Pyrénées", 2.401, 48.868, 40],
-    ["aq-eiffel", "Champ de Mars", 2.298, 48.856, 35],
-    ["aq-louvre", "Louvre area", 2.337, 48.861, 44],
-    ["aq-bastille", "Bastille", 2.369, 48.853, 48],
-    ["aq-nation", "Nation", 2.396, 48.848, 46],
-  ];
+const AIR_QUALITY_STATIONS = {
+  parc_de_belleville: { name: "Parc de Belleville", lon: 2.384, lat: 48.872 },
+  pere_lachaise: { name: "Père Lachaise", lon: 2.393, lat: 48.861 },
+  bd_menilmontant: { name: "Bd Ménilmontant", lon: 2.388, lat: 48.867 },
+  stade_louis_lumiere: { name: "Stade Louis Lumière", lon: 2.402, lat: 48.862 },
+  rue_menilmontant: { name: "Rue Ménilmontant", lon: 2.389, lat: 48.865 },
+  rue_des_pyrenees: { name: "Rue des Pyrénées", lon: 2.401, lat: 48.868 },
+  place_st_fargeau: { name: "Place St Fargeau", lon: 2.397, lat: 48.872 },
+};
 
-  const features = stations.map(([id, name, lon, lat, aqi]) =>
-    pointFeature(id, lon, lat, {
-      id,
-      name,
-      layer: "air-quality",
-      type: "air-quality-station",
-      airQualityIndex: aqi,
-      quiet: aqi < 40,
-      familyFriendly: aqi < 50,
-      tags: ["air-quality", aqi < 40 ? "good" : aqi < 50 ? "moderate" : "poor"],
-      source: "opendata.paris.fr/respirons-mieux + curated",
-    })
-  );
+async function buildAirQuality() {
+  console.log("Building air quality monitoring layer...");
+  const records = await fetchAll("respirons-mieux-dans-le-20eme-donnees-mini-stations", {
+    maxRecords: 500,
+  });
+
+  const features = [];
+
+  for (const [column, coords] of Object.entries(AIR_QUALITY_STATIONS)) {
+    const values = records
+      .map((r) => Number(r[column]))
+      .filter((v) => Number.isFinite(v));
+
+    if (!values.length) continue;
+
+    const avg = Math.round(values.reduce((a, b) => a + b, 0) / values.length);
+
+    features.push(
+      pointFeature(`aq-${column}`, coords.lon, coords.lat, {
+        id: `aq-${column}`,
+        name: coords.name,
+        layer: "air-quality",
+        type: "air-quality-station",
+        airQualityIndex: avg,
+        quiet: avg < 40,
+        familyFriendly: avg < 50,
+        tags: ["air-quality", avg < 40 ? "good" : avg < 50 ? "moderate" : "poor"],
+        source: "opendata.paris.fr/respirons-mieux",
+      })
+    );
+  }
 
   return { type: "FeatureCollection", features };
 }
@@ -390,10 +558,10 @@ async function main() {
     trees: await buildTrees(),
     parks: await buildParks(),
     accessibility: await buildAccessibility(),
-    museums: buildMuseums(),
-    metro: buildMetro(),
-    noise: buildNoise(),
-    "air-quality": buildAirQuality(),
+    museums: await buildMuseums(),
+    metro: await buildMetro(),
+    noise: await buildNoise(),
+    "air-quality": await buildAirQuality(),
   };
 
   const manifest = {

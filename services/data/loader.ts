@@ -7,6 +7,7 @@ import type {
   ParisFeatureCollection,
 } from "@/lib/types";
 import { LAYER_METADATA } from "@/lib/constants";
+import { clearSpatialIndexCache } from "./spatial-index";
 
 const DATA_DIR = path.join(process.cwd(), "public", "data");
 
@@ -70,4 +71,5 @@ export async function getAllFeatures(): Promise<ParisFeature[]> {
 
 export function clearLayerCache(): void {
   layerCache.clear();
+  clearSpatialIndexCache();
 }

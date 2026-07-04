@@ -19,13 +19,13 @@ export const LAYER_METADATA: Record<
   },
   museums: {
     name: "Museums & Monuments",
-    description: "Major museums and cultural landmarks in Paris",
-    defaultSource: "Curated — Paris cultural institutions",
+    description: "Municipal museums, cultural venues, and major national museums",
+    defaultSource: "opendata.paris.fr — lieux-municipaux + national supplement",
   },
   metro: {
     name: "Metro Stations",
-    description: "Paris Métro and RER stations",
-    defaultSource: "Curated — RATP station locations",
+    description: "Paris Métro stations within city bounds",
+    defaultSource: "data.iledefrance-mobilites.fr — arrets",
   },
   parks: {
     name: "Parks & Gardens",
@@ -51,12 +51,12 @@ export const LAYER_METADATA: Record<
   noise: {
     name: "Noise Monitoring",
     description: "Road noise measurement stations with dB levels",
-    defaultSource: "opendata.paris.fr — bruit-evolution + station coordinates",
+    defaultSource: "opendata.paris.fr — bruit-evolution",
   },
   "air-quality": {
     name: "Air Quality",
     description: "Air quality monitoring points across Paris",
-    defaultSource: "opendata.paris.fr — respirons-mieux + curated stations",
+    defaultSource: "opendata.paris.fr — respirons-mieux",
   },
 };
 

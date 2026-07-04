@@ -9,6 +9,7 @@ import {
 } from "@/lib/constants";
 import { filterByIntent, rankFeatures, resolveLayers } from "./intent-filter";
 import { loadLayers } from "./loader";
+import { getSpatialIndex } from "./spatial-index";
 
 export function walkMinutesToMeters(minutes: number): number {
   return minutes * WALKING_SPEED_M_PER_MIN;
@@ -30,21 +31,24 @@ export function resolveRadius(intent: IntentQuery): number {
 export function filterWithinRadius(
   features: ParisFeature[],
   center: [number, number],
-  radiusMeters: number
+  radiusMeters: number,
+  useIndex = false
 ): ParisFeature[] {
   const centerPoint = turf.point(center);
-  const circle = turf.circle(center, radiusMeters / 1000, {
-    steps: 64,
-    units: "kilometers",
-  });
+  const candidates = useIndex
+    ? getSpatialIndex(
+        [...new Set(features.map((f) => f.properties.layer))].map(String),
+        features
+      ).searchRadius(center, radiusMeters)
+    : features;
 
-  return features.filter((feature) => {
+  return candidates.filter((feature) => {
     if (feature.geometry.type !== "Point") return false;
-    const pt = turf.point(feature.geometry.coordinates);
-    if (turf.distance(centerPoint, pt, { units: "meters" }) <= radiusMeters) {
-      return true;
-    }
-    return turf.booleanPointInPolygon(pt, circle as Feature<Polygon>);
+    return (
+      turf.distance(centerPoint, turf.point(feature.geometry.coordinates), {
+        units: "meters",
+      }) <= radiusMeters
+    );
   });
 }
 
@@ -103,7 +107,7 @@ export async function runSpatialQuery(
   let features = filterByIntent(collection.features, intent);
 
   if (!options.skipRadius) {
-    features = filterWithinRadius(features, center, radiusMeters);
+    features = filterWithinRadius(features, center, radiusMeters, true);
   }
 
   features = rankFeatures(features, intent).slice(0, limit);
