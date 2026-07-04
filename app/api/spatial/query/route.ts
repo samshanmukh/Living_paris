@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { intentSchema } from "@/lib/intent-schema";
+import { formatZodError } from "@/lib/format-zod-error";
 import type { IntentQuery, SpatialQueryResult } from "@/lib/types";
 import { runSpatialQuery } from "@/services/data/spatial-engine";
 
@@ -14,10 +15,7 @@ export async function POST(request: NextRequest) {
 
   const parsed = intentSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid intent payload", details: parsed.error.flatten() },
-      { status: 400 }
-    );
+    return NextResponse.json(formatZodError(parsed.error), { status: 400 });
   }
 
   const intent: IntentQuery = parsed.data;
