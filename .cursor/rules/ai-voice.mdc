@@ -43,6 +43,7 @@ Member 3 — AI & Voice. Build `POST /api/chat` + voice hooks. Do not build map 
 ## AI integration
 
 - OpenRouter → Grok via `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` in `.env.local`
+- Default model: **`x-ai/grok-4.3`** — do not use retired `x-ai/grok-2-1212`
 - Intent output must validate with `intentSchema` from `lib/intent-schema.ts`
 
 ## Multi-agent order

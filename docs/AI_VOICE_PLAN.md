@@ -42,7 +42,9 @@ npm run dev:api    # Worker on http://localhost:8787
 npm run dev        # Next.js on http://localhost:3000 (proxies /api/* except /api/chat)
 ```
 
-**Env:** copy `.env.example` → `.env.local`, set `OPENROUTER_API_KEY`.
+**Env:** copy `.env.example` → `.env.local`, set `OPENROUTER_API_KEY` and `OPENROUTER_MODEL=x-ai/grok-4.3`.
+
+> **Model:** Do **not** use `x-ai/grok-2-1212` — retired by xAI (Aug 2025 on OpenRouter; May 2026 retirement wave for legacy slugs). Use **`x-ai/grok-4.3`** (OpenRouter slug, released Apr 2026).
 
 ---
 
@@ -127,7 +129,7 @@ Run **sequentially**. Merge each branch before starting the next.
 **Create:**
 
 - `lib/chat-types.ts` — `ChatRequest`, `ChatResponse`
-- `.env.example` — add `OPENROUTER_API_KEY=`, `OPENROUTER_MODEL=x-ai/grok-2-1212`
+- `.env.example` — add `OPENROUTER_API_KEY=`, `OPENROUTER_MODEL=x-ai/grok-4.3`
 
 **Exit checks:**
 
@@ -141,7 +143,7 @@ Run **sequentially**. Merge each branch before starting the next.
 
 **Create:**
 
-- `services/ai/openrouter.ts` — OpenRouter HTTP client
+- `services/ai/openrouter.ts` — OpenRouter HTTP client; default model `x-ai/grok-4.3` (override via `OPENROUTER_MODEL`)
 - `services/ai/prompts.ts` — system prompt aligned with `intentSchema`
 - `services/ai/intent-extractor.ts` — `extractIntent()` → Zod-validated JSON
 - `scripts/test-intent.mjs` — CLI smoke test
