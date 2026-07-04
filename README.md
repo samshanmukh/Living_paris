@@ -458,4 +458,74 @@ By combining conversational AI, public city data, and immersive map interactions
 | Data                   | Paris Open Data (GeoJSON)          |
 | Hosting                | Vercel                             |
 
+---
+
+# 📊 Data & Backend API
+
+The data layer is implemented and ready for the maps and AI teams to consume.
+
+## Setup
+
+```bash
+npm install
+npm run fetch-data   # Download & normalize Paris Open Data → public/data/
+npm run dev
+```
+
+## GeoJSON Layers (`public/data/`)
+
+| Layer | Source | Features |
+|-------|--------|----------|
+| `cafes` | opendata.paris.fr — terrasses-autorisations | ~800 |
+| `bikes` | opendata.paris.fr — velib-emplacement-des-stations | ~1500 |
+| `trees` | opendata.paris.fr — les-arbres | ~1200 |
+| `parks` | jardins-relais + curated major parks | ~35 |
+| `accessibility` | accessible hébergements + curated POIs | ~370 |
+| `museums` | Curated Paris museums | 12 |
+| `metro` | Curated RATP stations | 16 |
+| `noise` | Bruit monitoring stations | 10 |
+| `air-quality` | Air quality monitoring points | 8 |
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/datasets` | List all available layers with metadata |
+| `GET` | `/api/layers/:layerName` | Full GeoJSON for a layer |
+| `GET` | `/api/places?layer=cafes&radius=800&lat=48.86&lon=2.35` | Filtered places query |
+| `POST` | `/api/spatial/query` | **Main endpoint** — AI intent JSON → GeoJSON for map |
+| `GET` | `/api/spatial/query` | Schema documentation |
+| `POST` | `/api/routes` | Walking route + camera path between waypoints |
+| `GET` | `/api/routes` | Route API documentation |
+
+## Spatial Query (for AI + Maps teams)
+
+```bash
+curl -X POST http://localhost:3000/api/spatial/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mood": "romantic",
+    "budget": 60,
+    "walk": 15,
+    "accessibility": true,
+    "lat": 48.8566,
+    "lon": 2.3522,
+    "limit": 20
+  }'
+```
+
+Returns GeoJSON `FeatureCollection` with scored, radius-filtered features ready for Deck.gl / Mapbox layers.
+
+## Intent JSON Schema
+
+Defined in `lib/intent-schema.ts` (Zod-validated):
+
+- `mood` — romantic, family, rainy, photography, nightlife, relaxing, hidden, food, culture, general
+- `budget` — max euros
+- `walk` — max walking minutes (converted to ~80 m/min radius)
+- `accessibility` — filter to accessible POIs
+- `indoor` / `rainy` — prefer indoor locations
+- `lat` / `lon` / `radius` — spatial center and search radius
+- `layers` — override auto layer selection
+- `limit` — max features returned (default 50)
 

@@ -1,0 +1,50 @@
+{
+  "updatedAt": "2026-07-04T19:46:45.035Z",
+  "layers": [
+    {
+      "id": "cafes",
+      "featureCount": 800,
+      "path": "/data/cafes.geojson"
+    },
+    {
+      "id": "bikes",
+      "featureCount": 1517,
+      "path": "/data/bikes.geojson"
+    },
+    {
+      "id": "trees",
+      "featureCount": 1200,
+      "path": "/data/trees.geojson"
+    },
+    {
+      "id": "parks",
+      "featureCount": 180,
+      "path": "/data/parks.geojson"
+    },
+    {
+      "id": "accessibility",
+      "featureCount": 370,
+      "path": "/data/accessibility.geojson"
+    },
+    {
+      "id": "museums",
+      "featureCount": 92,
+      "path": "/data/museums.geojson"
+    },
+    {
+      "id": "metro",
+      "featureCount": 265,
+      "path": "/data/metro.geojson"
+    },
+    {
+      "id": "noise",
+      "featureCount": 15,
+      "path": "/data/noise.geojson"
+    },
+    {
+      "id": "air-quality",
+      "featureCount": 7,
+      "path": "/data/air-quality.geojson"
+    }
+  ]
+}
