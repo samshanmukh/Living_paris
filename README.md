@@ -462,7 +462,7 @@ By combining conversational AI, public city data, and immersive map interactions
 
 # 📊 Data & Backend API
 
-The API runs on **Cloudflare Workers** with GeoJSON stored in **R2**. The Next.js frontend proxies `/api/*` to the worker during local dev.
+The API runs on **Cloudflare Workers** with GeoJSON bundled as static assets (default deploy). An optional **R2** production env is available for larger datasets. The Next.js frontend proxies `/api/*` to the worker during local dev.
 
 **All public datasets are scoped to Paris** — opendata.paris.fr + IDFM metro within Paris bounds. Re-run `npm run fetch-data` to refresh.
 
@@ -474,23 +474,40 @@ The API runs on **Cloudflare Workers** with GeoJSON stored in **R2**. The Next.j
 npm install
 cp .env.example .env.local
 npm run fetch-data        # Download Paris Open Data → public/data/
-npm run upload-data       # Upload GeoJSON to local R2 (for wrangler dev)
-npm run dev:api           # Cloudflare Worker on http://localhost:8787
+npm run dev:api           # Cloudflare Worker on http://localhost:8787 (uses bundled assets)
 npm run dev               # Next.js frontend (proxies /api → worker)
 npm run test:api          # Integration tests (romantic + rainy queries)
 ```
 
-## Deploy API to Cloudflare
+Optional — test with local R2 preview bucket instead of bundled assets:
 
 ```bash
-# One-time: create R2 bucket in Cloudflare dashboard (or wrangler r2 bucket create living-paris-geojson)
+npm run upload-data       # Upload GeoJSON to local R2 preview bucket
+npm run dev:api -- --env production
+```
+
+## Deploy API to Cloudflare
+
+**Quick deploy** (bundles GeoJSON with the worker — no R2 setup):
+
+```bash
 npm run fetch-data
-npm run upload-data:remote
-npx wrangler secret put MAPBOX_ACCESS_TOKEN   # optional
 npm run deploy:api
 ```
 
+**Production with R2** (optional, for live data updates without redeploying):
+
+```bash
+# One-time: create R2 bucket (wrangler r2 bucket create living-paris-geojson)
+npm run fetch-data
+npm run upload-data:remote
+npx wrangler secret put MAPBOX_ACCESS_TOKEN   # optional
+npm run deploy:api:production
+```
+
 Set `API_URL=https://living-paris-api.<your-subdomain>.workers.dev` in production for the Next.js frontend.
+
+For CI deploy, add GitHub repo secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` — pushes to `master` that touch API files will run `.github/workflows/deploy-api.yml`.
 
 ## GeoJSON Layers (R2 / `public/data/`)
 

@@ -5,9 +5,11 @@ import { formatZodError } from "../../../lib/format-zod-error";
 import { intentSchema } from "../../../lib/intent-schema";
 import { LAYER_TYPES } from "../../../lib/types";
 import type { IntentQuery, SpatialQueryResult } from "../../../lib/types";
+import { AssetsDataStore } from "../../../services/data/assets-store";
 import { R2DataStore } from "../../../services/data/r2-store";
 import { createSpatialEngine } from "../../../services/data/spatial-engine";
 import { createCachedDataStore } from "../../../services/data/store";
+import type { DataStore } from "../../../services/data/store";
 import { planRoute } from "../../../services/routing/route-planner";
 import type { Env } from "./env";
 
@@ -23,9 +25,18 @@ const routeRequestSchema = z.object({
   accessible: z.boolean().optional(),
 });
 
+function createDataStore(env: Env): DataStore {
+  if (env.DATA) {
+    return createCachedDataStore(new R2DataStore(env.DATA));
+  }
+  if (env.ASSETS) {
+    return createCachedDataStore(new AssetsDataStore(env.ASSETS));
+  }
+  throw new Error("No data binding configured (DATA or ASSETS)");
+}
+
 function createEngine(env: Env) {
-  const store = createCachedDataStore(new R2DataStore(env.DATA));
-  return createSpatialEngine(store);
+  return createSpatialEngine(createDataStore(env));
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -60,7 +71,7 @@ app.get("/api/datasets", async (c) => {
     return c.json(
       {
         error: "Failed to load dataset manifest",
-        hint: "Run `npm run fetch-data && npm run upload-data` to populate R2",
+        hint: "Run `npm run fetch-data` to refresh bundled GeoJSON",
       },
       503
     );
@@ -87,7 +98,7 @@ app.get("/api/layers/:layerName", async (c) => {
     return c.json(
       {
         error: `Layer "${layerName}" not found`,
-        hint: "Run `npm run upload-data` to sync GeoJSON to R2",
+        hint: "Run `npm run fetch-data` to refresh bundled GeoJSON",
       },
       503
     );
@@ -127,7 +138,7 @@ app.get("/api/places", async (c) => {
   } catch (error) {
     console.error("GET /api/places failed:", error);
     return c.json(
-      { error: "Failed to query places", hint: "Run `npm run upload-data` first" },
+      { error: "Failed to query places", hint: "Run `npm run fetch-data` first" },
       503
     );
   }
@@ -172,7 +183,7 @@ app.post("/api/spatial/query", async (c) => {
     return c.json(
       {
         error: "Spatial query failed",
-        hint: "Run `npm run upload-data` to prepare GeoJSON in R2",
+        hint: "Run `npm run fetch-data` to refresh bundled GeoJSON",
       },
       503
     );
