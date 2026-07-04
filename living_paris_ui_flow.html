@@ -1,0 +1,375 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+.root{font-family:var(--font-sans);padding:1.25rem 0 1rem;}
+
+.header{margin-bottom:18px;}
+.eyebrow{font-size:10px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:4px;}
+.title{font-size:15px;font-weight:500;color:var(--text-primary);margin-bottom:2px;}
+.subtitle{font-size:12px;color:var(--text-secondary);}
+
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px;}
+.li{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary);}
+.ld{width:8px;height:8px;border-radius:2px;flex-shrink:0;}
+
+.flow{display:flex;flex-direction:column;gap:0;}
+
+.node-row{display:flex;justify-content:center;padding:0 0 0;}
+.arrow-row{display:flex;justify-content:center;align-items:flex-start;padding:2px 0;}
+.arrow-single{display:flex;flex-direction:column;align-items:center;gap:0;}
+.arrow-line{width:1.5px;height:16px;background:var(--border-strong);}
+.arrow-head{width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid var(--border-strong);}
+
+.arrow-split{display:flex;flex-direction:column;align-items:center;width:100%;}
+.split-down{width:1.5px;height:12px;background:var(--border-strong);margin:0 auto;}
+.split-bar{display:flex;align-items:flex-start;justify-content:center;width:100%;}
+.split-h{height:1.5px;background:var(--border-strong);}
+.split-legs{display:flex;justify-content:space-around;width:100%;}
+.split-leg{display:flex;flex-direction:column;align-items:center;}
+.split-leg-line{width:1.5px;height:12px;background:var(--border-strong);}
+
+.merge-row{display:flex;flex-direction:column;align-items:center;width:100%;}
+.merge-legs{display:flex;justify-content:space-around;width:100%;}
+.merge-leg{display:flex;flex-direction:column;align-items:center;}
+.merge-leg-line{width:1.5px;height:12px;background:var(--border-strong);}
+.merge-h{height:1.5px;background:var(--border-strong);width:100%;}
+.merge-down{display:flex;flex-direction:column;align-items:center;}
+.merge-down-line{width:1.5px;height:12px;background:var(--border-strong);}
+
+.block{border:0.5px solid var(--border);border-radius:12px;overflow:hidden;width:100%;}
+.block-header{padding:9px 14px 7px;border-bottom:0.5px solid var(--border);}
+.block-title{font-size:12px;font-weight:500;color:var(--text-primary);}
+.block-sub{font-size:11px;color:var(--text-muted);margin-top:1px;font-family:var(--font-mono);}
+.block-body{padding:8px 14px 10px;}
+
+.chips{display:flex;flex-wrap:wrap;gap:5px;padding:8px 14px;}
+.chip{font-size:11px;padding:3px 8px;border-radius:20px;border:0.5px solid var(--border);color:var(--text-secondary);}
+.chip-icon{margin-right:3px;}
+
+.tag-row{display:flex;flex-wrap:wrap;gap:4px;}
+.tag{font-size:10px;padding:2px 6px;border-radius:4px;border:0.5px solid var(--border);color:var(--text-muted);font-family:var(--font-mono);}
+
+.three-col{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;}
+.inner-block{border:0.5px solid var(--border);border-radius:8px;overflow:hidden;}
+.inner-header{padding:6px 10px 5px;border-bottom:0.5px solid var(--border);}
+.inner-title{font-size:11px;font-weight:500;color:var(--text-primary);}
+.inner-sub{font-size:10px;color:var(--text-muted);font-family:var(--font-mono);}
+.inner-body{padding:5px 10px 7px;}
+.inner-item{font-size:11px;color:var(--text-secondary);padding:1px 0;line-height:1.4;}
+
+.code-block{background:var(--surface-0);border-radius:6px;padding:8px 10px;font-family:var(--font-mono);font-size:10px;color:var(--text-secondary);line-height:1.7;margin-top:6px;}
+.code-key{color:var(--text-accent);}
+.code-val{color:var(--text-success);}
+
+.data-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;}
+.data-item{font-size:11px;color:var(--text-secondary);padding:4px 6px;border:0.5px solid var(--border);border-radius:6px;display:flex;align-items:center;gap:5px;}
+.data-icon{font-size:13px;}
+
+.vis-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;}
+.vis-item{font-size:11px;color:var(--text-secondary);padding:4px 6px;border:0.5px solid var(--border);border-radius:6px;}
+
+.stack-table{width:100%;border-collapse:collapse;}
+.stack-table tr{border-bottom:0.5px solid var(--border);}
+.stack-table tr:last-child{border-bottom:none;}
+.stack-table td{padding:7px 10px;font-size:12px;}
+.stack-td-layer{color:var(--text-secondary);width:42%;}
+.stack-td-tech{color:var(--text-primary);font-weight:500;}
+
+.final-node{border:0.5px solid var(--border-accent);border-radius:12px;background:var(--bg-accent);padding:12px 16px;text-align:center;}
+.final-label{font-size:13px;font-weight:500;color:var(--text-accent);}
+
+.user-node{border:0.5px solid var(--border);border-radius:12px;padding:10px 16px;text-align:center;background:var(--surface-1);}
+.user-label{font-size:13px;font-weight:500;color:var(--text-primary);}
+.user-sub{font-size:11px;color:var(--text-muted);margin-top:2px;}
+
+.col-badge{display:inline-block;font-size:10px;padding:1px 6px;border-radius:20px;margin-left:6px;font-weight:500;vertical-align:middle;}
+.cb-blue{background:var(--bg-accent);color:var(--text-accent);}
+.cb-purple{background:var(--bg-pro);color:var(--text-pro);}
+.cb-teal{background:var(--bg-success);color:var(--text-success);}
+.cb-amber{background:var(--bg-warning);color:var(--text-warning);}
+</style>
+
+<div class="root">
+<div class="header">
+  <div class="eyebrow">Living Paris · system architecture</div>
+  <div class="title">UI flow — user to beautiful interactive demo</div>
+  <div class="subtitle">Next.js · Mapbox · AI · Paris Open Data</div>
+</div>
+
+<div class="legend">
+  <div class="li"><div class="ld" style="background:#378ADD"></div>Frontend</div>
+  <div class="li"><div class="ld" style="background:#7F77DD"></div>AI engine</div>
+  <div class="li"><div class="ld" style="background:#1D9E75"></div>Data layer</div>
+  <div class="li"><div class="ld" style="background:#BA7517"></div>Visualization</div>
+</div>
+
+<div class="flow">
+
+  <div class="node-row">
+    <div style="width:220px">
+      <div class="user-node">
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px">
+          <i class="ti ti-user" style="font-size:16px;color:var(--text-muted)" aria-hidden="true"></i>
+          <div class="user-label">User</div>
+        </div>
+        <div class="user-sub">Voice / text conversation</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-row"><div class="arrow-single"><div class="arrow-line"></div><div class="arrow-head"></div></div></div>
+
+  <div class="node-row">
+    <div style="width:100%">
+      <div class="block" style="border-color:#378ADD33;">
+        <div class="block-header" style="background:#E6F1FB22;">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="ld" style="background:#378ADD;width:9px;height:9px;border-radius:50%;flex-shrink:0"></div>
+            <div>
+              <div class="block-title">Living Paris web app<span class="col-badge cb-blue">Frontend</span></div>
+              <div class="block-sub">Next.js · React · Tailwind · Framer Motion</div>
+            </div>
+          </div>
+        </div>
+        <div class="chips">
+          <span class="chip"><span class="chip-icon"><i class="ti ti-message" style="font-size:11px" aria-hidden="true"></i></span>AI chat</span>
+          <span class="chip"><span class="chip-icon"><i class="ti ti-map" style="font-size:11px" aria-hidden="true"></i></span>Interactive map</span>
+          <span class="chip"><span class="chip-icon"><i class="ti ti-microphone" style="font-size:11px" aria-hidden="true"></i></span>Voice</span>
+          <span class="chip"><span class="chip-icon"><i class="ti ti-layout-cards" style="font-size:11px" aria-hidden="true"></i></span>Experience cards</span>
+        </div>
+        <div style="padding:0 14px 10px">
+          <div class="tag-row">
+            <span class="tag">Chat interface</span>
+            <span class="tag">Fullscreen Mapbox</span>
+            <span class="tag">Camera animations</span>
+            <span class="tag">Dynamic UI</span>
+            <span class="tag">Layer controls</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-row">
+    <div style="display:flex;flex-direction:column;align-items:center">
+      <div class="arrow-line"></div>
+      <div style="font-size:10px;color:var(--text-muted);font-family:var(--font-mono);padding:2px 8px;border:0.5px solid var(--border);border-radius:20px;background:var(--surface-1)">POST /api/chat</div>
+      <div class="arrow-line"></div>
+      <div class="arrow-head"></div>
+    </div>
+  </div>
+
+  <div class="node-row">
+    <div style="width:100%">
+      <div class="block" style="border-color:#7F77DD44;">
+        <div class="block-header" style="background:#EEEDFE22;">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="ld" style="background:#7F77DD;width:9px;height:9px;border-radius:50%;flex-shrink:0"></div>
+            <div>
+              <div class="block-title">AI experience engine<span class="col-badge cb-purple">AI layer</span></div>
+              <div class="block-sub">Claude · structured output · Zod validation</div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:8px 14px 4px">
+          <div class="tag-row" style="margin-bottom:8px">
+            <span class="tag">① Intent extraction</span>
+            <span class="tag">② Experience detection</span>
+            <span class="tag">③ Recommendation scoring</span>
+            <span class="tag">④ Route planning</span>
+            <span class="tag">⑤ Response generation</span>
+          </div>
+          <div class="code-block">
+            {<br>
+            &nbsp;&nbsp;<span class="code-key">mood</span>: <span class="code-val">"romantic"</span>,<br>
+            &nbsp;&nbsp;<span class="code-key">budget</span>: <span class="code-val">60</span>,<br>
+            &nbsp;&nbsp;<span class="code-key">walk</span>: <span class="code-val">15</span>,<br>
+            &nbsp;&nbsp;<span class="code-key">accessibility</span>: <span class="code-val">true</span><br>
+            }
+          </div>
+        </div>
+        <div style="padding:6px 14px 10px;font-size:10px;color:var(--text-muted)">Output JSON →</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-row" style="padding:4px 0">
+    <div class="arrow-split" style="width:100%">
+      <div class="split-down"></div>
+      <div style="display:flex;width:88%;align-items:flex-start;justify-content:space-between">
+        <div style="display:flex;flex-direction:column;align-items:center;flex:1">
+          <div style="height:1.5px;background:var(--border-strong);width:100%"></div>
+          <div class="split-leg-line"></div>
+          <div class="arrow-head"></div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;flex:1">
+          <div style="height:1.5px;background:var(--border-strong);width:100%"></div>
+          <div class="split-leg-line"></div>
+          <div class="arrow-head"></div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;flex:1">
+          <div style="height:1.5px;background:var(--border-strong);width:100%"></div>
+          <div class="split-leg-line"></div>
+          <div class="arrow-head"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="node-row">
+    <div style="width:100%">
+      <div class="three-col">
+        <div class="inner-block" style="border-color:#BA751744;">
+          <div class="inner-header" style="background:#FAEEDA22;">
+            <div class="inner-title">Spatial engine<span class="col-badge cb-amber" style="font-size:9px">Turf.js</span></div>
+          </div>
+          <div class="inner-body">
+            <div class="inner-item">Radius search</div>
+            <div class="inner-item">Geo filtering</div>
+            <div class="inner-item">Nearby search</div>
+            <div class="inner-item">Polygon queries</div>
+          </div>
+        </div>
+        <div class="inner-block" style="border-color:#7F77DD44;">
+          <div class="inner-header" style="background:#EEEDFE22;">
+            <div class="inner-title">Recommendation<span class="col-badge cb-purple" style="font-size:9px">scores</span></div>
+          </div>
+          <div class="inner-body">
+            <div class="inner-item">Romantic</div>
+            <div class="inner-item">Hidden gems</div>
+            <div class="inner-item">Family</div>
+            <div class="inner-item">Rainy day</div>
+          </div>
+        </div>
+        <div class="inner-block" style="border-color:#1D9E7544;">
+          <div class="inner-header" style="background:#E1F5EE22;">
+            <div class="inner-title">Route planner<span class="col-badge cb-teal" style="font-size:9px">Mapbox</span></div>
+          </div>
+          <div class="inner-body">
+            <div class="inner-item">Walking route</div>
+            <div class="inner-item">Accessibility</div>
+            <div class="inner-item">ETA</div>
+            <div class="inner-item">Camera path</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-row" style="padding:4px 0">
+    <div style="width:100%;display:flex;flex-direction:column;align-items:center">
+      <div style="display:flex;width:88%;align-items:flex-end;justify-content:space-between">
+        <div style="display:flex;flex-direction:column;align-items:center;flex:1">
+          <div class="merge-leg-line"></div>
+          <div style="height:1.5px;background:var(--border-strong);width:100%"></div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;flex:1">
+          <div class="merge-leg-line"></div>
+          <div style="height:1.5px;background:var(--border-strong);width:100%"></div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;flex:1">
+          <div class="merge-leg-line"></div>
+          <div style="height:1.5px;background:var(--border-strong);width:100%"></div>
+        </div>
+      </div>
+      <div class="split-down"></div>
+      <div class="arrow-head"></div>
+    </div>
+  </div>
+
+  <div class="node-row">
+    <div style="width:100%">
+      <div class="block" style="border-color:#1D9E7544;">
+        <div class="block-header" style="background:#E1F5EE22;">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="ld" style="background:#1D9E75;width:9px;height:9px;border-radius:50%;flex-shrink:0"></div>
+            <div>
+              <div class="block-title">Paris open data layer<span class="col-badge cb-teal">GeoJSON</span></div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:8px 14px 10px">
+          <div class="data-grid">
+            <div class="data-item"><i class="ti ti-coffee" style="font-size:13px;color:var(--text-muted)" aria-hidden="true"></i>Café terraces</div>
+            <div class="data-item"><i class="ti ti-trees" style="font-size:13px;color:var(--text-muted)" aria-hidden="true"></i>Trees and parks</div>
+            <div class="data-item"><i class="ti ti-bus" style="font-size:13px;color:var(--text-muted)" aria-hidden="true"></i>Metro stations</div>
+            <div class="data-item"><i class="ti ti-volume" style="font-size:13px;color:var(--text-muted)" aria-hidden="true"></i>Noise levels</div>
+            <div class="data-item"><i class="ti ti-wind" style="font-size:13px;color:var(--text-muted)" aria-hidden="true"></i>Air quality</div>
+            <div class="data-item"><i class="ti ti-wheelchair" style="font-size:13px;color:var(--text-muted)" aria-hidden="true"></i>Accessibility</div>
+            <div class="data-item"><i class="ti ti-bike" style="font-size:13px;color:var(--text-muted)" aria-hidden="true"></i>Bike stations</div>
+            <div class="data-item"><i class="ti ti-building" style="font-size:13px;color:var(--text-muted)" aria-hidden="true"></i>Museums</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-row"><div class="arrow-single"><div class="arrow-line"></div><div class="arrow-head"></div></div></div>
+
+  <div class="node-row">
+    <div style="width:100%">
+      <div class="block" style="border-color:#BA751744;">
+        <div class="block-header" style="background:#FAEEDA22;">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="ld" style="background:#BA7517;width:9px;height:9px;border-radius:50%;flex-shrink:0"></div>
+            <div>
+              <div class="block-title">Visualization layer<span class="col-badge cb-amber">Map render</span></div>
+              <div class="block-sub">Mapbox GL JS · Deck.gl · react-map-gl</div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:8px 14px 10px">
+          <div class="vis-grid">
+            <div class="vis-item"><i class="ti ti-route" style="font-size:11px;margin-right:4px" aria-hidden="true"></i>Animated routes</div>
+            <div class="vis-item"><i class="ti ti-chart-dots" style="font-size:11px;margin-right:4px" aria-hidden="true"></i>Heatmaps</div>
+            <div class="vis-item"><i class="ti ti-map-pin" style="font-size:11px;margin-right:4px" aria-hidden="true"></i>Glowing markers</div>
+            <div class="vis-item"><i class="ti ti-moon" style="font-size:11px;margin-right:4px" aria-hidden="true"></i>Dynamic themes</div>
+            <div class="vis-item"><i class="ti ti-video" style="font-size:11px;margin-right:4px" aria-hidden="true"></i>Camera fly-to</div>
+            <div class="vis-item"><i class="ti ti-layers" style="font-size:11px;margin-right:4px" aria-hidden="true"></i>GeoJSON layers</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-row"><div class="arrow-single"><div class="arrow-line"></div><div class="arrow-head"></div></div></div>
+
+  <div class="node-row">
+    <div style="width:100%">
+      <div class="block" style="border-color:var(--border);">
+        <div class="block-header">
+          <div class="block-title" style="font-size:11px;color:var(--text-muted)">Technology stack</div>
+        </div>
+        <div style="padding:0 2px">
+          <table class="stack-table">
+            <tr><td class="stack-td-layer">Frontend</td><td class="stack-td-tech">Next.js, React, Tailwind CSS</td></tr>
+            <tr><td class="stack-td-layer">UI animation</td><td class="stack-td-tech">Framer Motion</td></tr>
+            <tr><td class="stack-td-layer">Mapping</td><td class="stack-td-tech">Mapbox GL JS + react-map-gl</td></tr>
+            <tr><td class="stack-td-layer">Advanced visualization</td><td class="stack-td-tech">Deck.gl</td></tr>
+            <tr><td class="stack-td-layer">Spatial processing</td><td class="stack-td-tech">Turf.js</td></tr>
+            <tr><td class="stack-td-layer">AI</td><td class="stack-td-tech">Claude · structured output</td></tr>
+            <tr><td class="stack-td-layer">Voice</td><td class="stack-td-tech">Web Speech API</td></tr>
+            <tr><td class="stack-td-layer">Backend</td><td class="stack-td-tech">Next.js API routes</td></tr>
+            <tr><td class="stack-td-layer">Data</td><td class="stack-td-tech">Paris Open Data (GeoJSON)</td></tr>
+            <tr><td class="stack-td-layer">Hosting</td><td class="stack-td-tech">Vercel</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-row"><div class="arrow-single"><div class="arrow-line"></div><div class="arrow-head"></div></div></div>
+
+  <div class="node-row">
+    <div style="width:100%">
+      <div class="final-node">
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px">
+          <i class="ti ti-sparkles" style="font-size:15px;color:var(--text-accent)" aria-hidden="true"></i>
+          <div class="final-label">Beautiful interactive demo</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
