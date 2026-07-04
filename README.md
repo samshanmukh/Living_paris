@@ -464,11 +464,16 @@ By combining conversational AI, public city data, and immersive map interactions
 
 The data layer is implemented and ready for the maps and AI teams to consume.
 
+**All public datasets are scoped to Paris** — coordinates, addresses, and open-data sources are filtered to the city (metro uses Île-de-France Mobilités `arrets` within Paris bounds). Re-run `npm run fetch-data` to refresh from opendata.paris.fr.
+
+> **AI team:** Your `/api/chat` endpoint should call `POST /api/spatial/query` internally with the structured intent JSON, then return both the AI reply and the GeoJSON for the map team.
+
 ## Setup
 
 ```bash
 npm install
-npm run fetch-data   # Download & normalize Paris Open Data → public/data/
+cp .env.example .env.local   # optional — Mapbox token for /api/routes
+npm run fetch-data           # Download & normalize Paris Open Data → public/data/
 npm run dev
 ```
 
