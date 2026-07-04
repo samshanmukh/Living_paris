@@ -644,3 +644,50 @@ romantic indoor places.
 - **Tuning** — all knobs live in `services/experience/modes.ts`
   (layer weights, scoring weights, themes, camera, stop counts).
 
+---
+
+# 🎨 Frontend & UX (Member 1)
+
+Mobile-first conversational UI — a chat sheet over a living map, in the warm
+miniature-Paris palette (cream / terracotta / forest / gold).
+
+## Run it
+
+```bash
+npm install
+npm run dev        # http://localhost:3000
+```
+
+The map uses a free CARTO vector basemap (no token needed). Try the demo:
+type **"First date tonight, under €60"**, then **"It's raining"**, then
+**"We only have an hour"**, then **"She's vegetarian"** — the city recomposes
+on every turn.
+
+## Structure
+
+| Piece | File | Notes |
+|-------|------|-------|
+| App shell | `app/page.tsx` | Mobile-first; theme tints, status pill, bottom stack |
+| Design tokens | `app/globals.css` | Palette, marker styles, popup skin |
+| Map | `features/map/MapCanvas.tsx` | MapLibre; markers animate in, glowing numbered stops, route line, fitBounds camera. **Member 2 swaps the basemap/style here.** |
+| Chat | `features/chat/ChatSheet.tsx` | Messages, suggestion chips, mic (Web Speech API where supported) |
+| Cards | `features/experience/ExperienceCard.tsx` | Collapsible itinerary with numbered stops + walk times |
+| Chat API | `app/api/chat/route.ts` | Heuristic parse → merge intent → Experience Engine → reply. **Member 3 replaces parsing/reply with OpenRouter; contract stays.** |
+| NL parser | `lib/parse-intent.ts` | Regex mood/budget/time/dietary extraction (AI placeholder) |
+
+## Conversation contract (`POST /api/chat`)
+
+```jsonc
+// request — client sends back the accumulated intent each turn
+{ "message": "it's raining", "intent": { "mood": "romantic", "budget": 60 } }
+
+// response
+{
+  "reply": "Rain in Paris — noted. I moved everything under a roof: ...",
+  "intent": { "mood": "romantic", "budget": 60, "rainy": true },  // send this on next turn
+  "understood": { "rainy": true },       // what this turn changed
+  "result": { /* ExperienceResult — mapState, itinerary, recommendations */ },
+  "route": { /* walking route geometry + cameraPath, or null */ }
+}
+```
+
