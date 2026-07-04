@@ -11,8 +11,14 @@ import type { DataStore } from "./store";
 export class AssetsDataStore implements DataStore {
   constructor(private assets: Fetcher) {}
 
+  private fetchAsset(path: string): Promise<Response> {
+    const normalized = path.startsWith("/") ? path : `/${path}`;
+    // Hostname is ignored by the ASSETS binding; only the pathname is used.
+    return this.assets.fetch(new Request(`https://assets.local${normalized}`));
+  }
+
   async loadLayer(layer: LayerType): Promise<ParisFeatureCollection> {
-    const response = await this.assets.fetch(`/${layer}.geojson`);
+    const response = await this.fetchAsset(`/${layer}.geojson`);
     if (!response.ok) {
       throw new Error(`Layer "${layer}" not found in bundled assets`);
     }
@@ -28,7 +34,7 @@ export class AssetsDataStore implements DataStore {
   }
 
   async getLayerMetadata(): Promise<LayerMeta[]> {
-    const response = await this.assets.fetch("/manifest.json");
+    const response = await this.fetchAsset("/manifest.json");
     if (!response.ok) {
       throw new Error("manifest.json not found in bundled assets");
     }
