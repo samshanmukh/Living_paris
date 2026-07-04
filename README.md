@@ -599,4 +599,142 @@ Defined in `lib/intent-schema.ts` (Zod-validated):
 - `lat` / `lon` / `radius` — spatial center and search radius
 - `layers` — override auto layer selection
 - `limit` — max features returned (default 50)
+- `timeBudget` — total minutes available for the experience ("we only have an hour")
+- `dietary` — dietary preferences, e.g. `["vegetarian"]`
+
+---
+
+# 🧠 Experience Engine
+
+The Experience Engine decides **what appears on the map**. It turns accumulated
+conversation intent into a ranked experience with an itinerary and a
+render-ready `mapState`.
+
+```
+intent (merged across conversation turns)
+  → experience mode (Date Night, Rainy Day, ...)
+  → weighted layers within walking radius
+  → scored + ranked features (with human-readable reasons)
+  → itinerary (ordered stops, time-budget aware)
+  → mapState (camera, theme, layers, markers, route waypoints)
+```
+
+## Main endpoint
+
+```bash
+curl -X POST http://localhost:3000/api/experience \
+  -H "Content-Type: application/json" \
+  -d '{
+    "mood": "romantic",
+    "budget": 60,
+    "walk": 20,
+    "rainy": false,
+    "timeBudget": 60,
+    "dietary": ["vegetarian"],
+    "lat": 48.8566,
+    "lon": 2.3522
+  }'
+```
+
+`GET /api/experience` lists all experience modes and documents the schema.
+
+## Experience modes
+
+| Mode | Trigger mood | Layers | Theme |
+|------|--------------|--------|-------|
+| ❤️ Date Night | `romantic` | cafes, parks, museums | `romantic` |
+| 👨‍👩‍👧 Family Day | `family` | parks, museums, metro, cafes | `family` |
+| 💎 Hidden Gems | `hidden` | parks, cafes, trees | `day` |
+| 🌧️ Rainy Day | `rainy` or `rainy: true` | museums, metro, cafes | `rain` |
+| 🍽️ Food Tour | `food` | cafes, metro | `day` |
+| 📸 Photography Tour | `photography` | parks, museums, trees | `day` |
+| 🎭 Museums & Art | `culture` | museums, metro | `day` |
+| 🌳 Relaxing Walk | `relaxing` | parks, trees, cafes | `day` |
+| 🌙 Nightlife | `nightlife` | cafes, metro | `night` |
+| 🚶 Local Explorer | `general` / fallback | cafes, parks, museums, metro | `day` |
+
+`rainy: true` overrides the mode (the "now it's raining" pivot) while the
+scoring still honors the lingering mood — a rainy date night prefers
+romantic indoor places.
+
+## Response shape
+
+```jsonc
+{
+  "experience": { "id": "date-night", "name": "Date Night", "emoji": "❤️" },
+  "mapState": {
+    "flyTo": { "center": [2.35, 48.85], "zoom": 14.5, "pitch": 55 },
+    "theme": "romantic",              // drives map style + UI palette
+    "visibleLayers": ["cafes", "parks", "museums"],
+    "markers": [ { "id", "name", "coords", "layer", "score", "highlighted", "reasons" } ],
+    "routeWaypoints": [ { "lon", "lat", "name" } ]  // feed to POST /api/routes
+  },
+  "itinerary": {
+    "stops": [ { "order", "name", "layer", "coords", "reasons", "walkFromPreviousMinutes" } ],
+    "totalWalkMinutes": 14.2,
+    "totalDurationMinutes": 94,
+    "fitsTimeBudget": true
+  },
+  "recommendations": [ /* top places with reasons, for cards */ ]
+}
+```
+
+## Team integration
+
+- **AI team (Member 3)** — merge conversation turns into one intent object and
+  POST it here. `reasons` on stops/recommendations are ready to narrate.
+- **Maps team (Member 2)** — render `mapState` directly: fly the camera, apply
+  `theme`, draw `markers` (glow the `highlighted` ones), then POST
+  `routeWaypoints` to `/api/routes` for the animated path.
+- **Frontend (Member 1)** — `itinerary.stops` and `recommendations` power the
+  experience cards; each carries human-readable `reasons`.
+- **Tuning** — all knobs live in `services/experience/modes.ts`
+  (layer weights, scoring weights, themes, camera, stop counts).
+
+---
+
+# 🎨 Frontend & UX (Member 1)
+
+Mobile-first conversational UI — a chat sheet over a living map, in the warm
+miniature-Paris palette (cream / terracotta / forest / gold).
+
+## Run it
+
+```bash
+npm install
+npm run dev        # http://localhost:3000
+```
+
+The map uses a free CARTO vector basemap (no token needed). Try the demo:
+type **"First date tonight, under €60"**, then **"It's raining"**, then
+**"We only have an hour"**, then **"She's vegetarian"** — the city recomposes
+on every turn.
+
+## Structure
+
+| Piece | File | Notes |
+|-------|------|-------|
+| App shell | `app/page.tsx` | Mobile-first; theme tints, status pill, bottom stack |
+| Design tokens | `app/globals.css` | Palette, marker styles, popup skin |
+| Map | `features/map/MapCanvas.tsx` | MapLibre; markers animate in, glowing numbered stops, route line, fitBounds camera. **Member 2 swaps the basemap/style here.** |
+| Chat | `features/chat/ChatSheet.tsx` | Messages, suggestion chips, mic (Web Speech API where supported) |
+| Cards | `features/experience/ExperienceCard.tsx` | Collapsible itinerary with numbered stops + walk times |
+| Chat API | `app/api/chat/route.ts` | Heuristic parse → merge intent → Experience Engine → reply. **Member 3 replaces parsing/reply with OpenRouter; contract stays.** |
+| NL parser | `lib/parse-intent.ts` | Regex mood/budget/time/dietary extraction (AI placeholder) |
+
+## Conversation contract (`POST /api/chat`)
+
+```jsonc
+// request — client sends back the accumulated intent each turn
+{ "message": "it's raining", "intent": { "mood": "romantic", "budget": 60 } }
+
+// response
+{
+  "reply": "Rain in Paris — noted. I moved everything under a roof: ...",
+  "intent": { "mood": "romantic", "budget": 60, "rainy": true },  // send this on next turn
+  "understood": { "rainy": true },       // what this turn changed
+  "result": { /* ExperienceResult — mapState, itinerary, recommendations */ },
+  "route": { /* walking route geometry + cameraPath, or null */ }
+}
+```
 

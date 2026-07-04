@@ -26,6 +26,8 @@ export const intentSchema = z.object({
   radius: z.number().positive().optional(),
   layers: z.array(z.enum(LAYER_TYPES)).optional(),
   limit: z.number().int().positive().max(500).optional(),
+  timeBudget: z.number().positive().max(24 * 60).optional(),
+  dietary: z.array(z.string().min(1)).max(10).optional(),
 });
 
 export type IntentInput = z.infer<typeof intentSchema>;
