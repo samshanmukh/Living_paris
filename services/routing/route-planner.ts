@@ -89,21 +89,23 @@ function buildCameraPath(coordinates: Position[]): Position[] {
 
 async function fetchMapboxRoute(
   waypoints: RouteWaypoint[],
-  profile: "walking" | "cycling"
+  profile: "walking" | "cycling",
+  mapboxToken?: string
 ): Promise<RouteResponse | null> {
-  const token = process.env.MAPBOX_ACCESS_TOKEN;
-  if (!token) return null;
+  if (!mapboxToken) return null;
 
   const coords = waypoints.map((w) => `${w.lon},${w.lat}`).join(";");
   const mapboxProfile = profile === "cycling" ? "cycling" : "walking";
   const url =
     `https://api.mapbox.com/directions/v5/mapbox/${mapboxProfile}/${coords}` +
-    `?geometries=geojson&overview=full&access_token=${token}`;
+    `?geometries=geojson&overview=full&access_token=${mapboxToken}`;
 
   const res = await fetch(url);
   if (!res.ok) return null;
 
-  const data = await res.json();
+  const data = (await res.json()) as {
+    routes?: { distance: number; duration: number; geometry: Feature<LineString> }[];
+  };
   const route = data.routes?.[0];
   if (!route) return null;
 
@@ -122,7 +124,14 @@ async function fetchMapboxRoute(
   };
 }
 
-export async function planRoute(request: RouteRequest): Promise<RouteResponse> {
+export interface RoutePlannerEnv {
+  mapboxAccessToken?: string;
+}
+
+export async function planRoute(
+  request: RouteRequest,
+  env: RoutePlannerEnv = {}
+): Promise<RouteResponse> {
   const profile = request.profile ?? "walking";
   const waypoints = request.waypoints;
 
@@ -130,7 +139,7 @@ export async function planRoute(request: RouteRequest): Promise<RouteResponse> {
     throw new Error("At least two waypoints are required");
   }
 
-  const mapboxRoute = await fetchMapboxRoute(waypoints, profile);
+  const mapboxRoute = await fetchMapboxRoute(waypoints, profile, env.mapboxAccessToken);
   if (mapboxRoute) return mapboxRoute;
 
   const coordinates = toPositions(waypoints);
