@@ -372,7 +372,7 @@ export function LivingParisExperience() {
           ) : null}
         </div>
 
-        <div className="prompt-grid" aria-label="Suggested prompts">
+        <div className="quick-actions" aria-label="Common options">
           {commonOptions.map((option) => {
             const OptionIcon = option.icon;
             return (
@@ -390,18 +390,23 @@ export function LivingParisExperience() {
               </button>
             );
           })}
-          {promptChips.map((prompt) => (
-            <button
-              className="prompt-chip"
-              disabled={isThinking}
-              key={prompt}
-              type="button"
-              onClick={() => void runPrompt(prompt)}
-            >
-              {prompt}
-            </button>
-          ))}
         </div>
+
+        <details className="example-prompts">
+          <summary>Examples</summary>
+          <div className="example-list">
+            {promptChips.map((prompt) => (
+              <button
+                disabled={isThinking}
+                key={prompt}
+                type="button"
+                onClick={() => void runPrompt(prompt)}
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+        </details>
 
         <form className="composer" onSubmit={handleSubmit}>
           <input

@@ -5,6 +5,7 @@ import maplibregl from "maplibre-gl";
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import {
   ArcLayer,
+  ColumnLayer,
   PathLayer,
   PolygonLayer,
   ScatterplotLayer,
@@ -350,6 +351,39 @@ function buildMapLayers({
           stroked: true,
           pickable: false
         }),
+        new ColumnLayer<ParisFeature>({
+          id: "backend-feature-plinths",
+          data: backendFeatures.slice(0, 24),
+          diskResolution: 4,
+          angle: 45,
+          radius: 18,
+          coverage: 0.74,
+          getPosition: featurePosition,
+          getElevation: (feature) =>
+            feature.properties.id === selectedFeatureId
+              ? 78
+              : 34 + Math.min(feature.properties.scoreHint ?? 8, 10) * 2.2,
+          getFillColor: (feature) =>
+            withAlpha(
+              featureColor(feature, feature.properties.id === selectedFeatureId, accent),
+              feature.properties.id === selectedFeatureId ? 228 : 174
+            ),
+          getLineColor: [255, 255, 255, 190],
+          getLineWidth: 0.8,
+          lineWidthUnits: "pixels",
+          material: {
+            ambient: 0.35,
+            diffuse: 0.58,
+            shininess: 28,
+            specularColor: [255, 255, 255]
+          },
+          pickable: true,
+          onClick: ({ object }) => {
+            if (!object) return false;
+            onFeatureSelect?.(object.properties.id);
+            return true;
+          }
+        }),
         new ScatterplotLayer<ParisFeature>({
           id: "backend-feature-points",
           data: backendFeatures,
@@ -406,6 +440,32 @@ function buildMapLayers({
         lineWidthUnits: "pixels",
         filled: true,
         stroked: true,
+        pickable: false
+      }),
+      new ColumnLayer<Venue>({
+        id: "team-venue-plinths",
+        data: backendFeatures.length ? [] : venues,
+        diskResolution: 4,
+        angle: 45,
+        radius: 18,
+        coverage: 0.74,
+        getPosition: (venue) => venue.coordinate,
+        getElevation: (venue) => (venue.id === selectedVenueId ? 72 : 32 + venue.score * 0.32),
+        getFillColor: (venue) => [
+          accent[0],
+          accent[1],
+          accent[2],
+          venue.id === selectedVenueId ? 226 : 164
+        ],
+        getLineColor: [255, 255, 255, 180],
+        getLineWidth: 0.8,
+        lineWidthUnits: "pixels",
+        material: {
+          ambient: 0.35,
+          diffuse: 0.58,
+          shininess: 28,
+          specularColor: [255, 255, 255]
+        },
         pickable: false
       }),
       new ScatterplotLayer<Venue>({

@@ -215,7 +215,8 @@ button {
 .icon-button,
 .secondary-command,
 .composer button,
-.prompt-grid button,
+.quick-actions button,
+.example-prompts button,
 .scene-rail button,
 .layer-dock button,
 .stop-list button {
@@ -254,11 +255,11 @@ button {
 .message-list {
   display: flex;
   min-height: 0;
-  flex: 1;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 10px;
   overflow-y: auto;
-  padding: 16px;
+  padding: 16px 16px 12px;
 }
 
 .message-bubble {
@@ -281,33 +282,47 @@ button {
   background: rgba(255, 106, 169, 0.14);
 }
 
-.prompt-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+.quick-actions {
+  display: flex;
   gap: 8px;
-  padding: 0 16px 16px;
+  flex: 0 0 auto;
+  overflow-x: auto;
+  padding: 0 16px 10px;
+  scrollbar-width: thin;
 }
 
-.prompt-grid button {
-  min-height: 44px;
+.quick-actions button,
+.example-prompts button {
   border-radius: 8px;
-  padding: 9px;
   color: var(--muted);
   font-size: 12px;
   line-height: 1.35;
   text-align: left;
 }
 
-.prompt-grid button:disabled {
+.quick-actions button {
+  min-height: 36px;
+  padding: 7px 9px;
+}
+
+.example-prompts button {
+  width: 100%;
+  min-height: 34px;
+  padding: 8px 9px;
+}
+
+.quick-actions button:disabled,
+.example-prompts button:disabled {
   cursor: not-allowed;
   opacity: 0.52;
 }
 
 .option-chip {
-  display: grid;
+  display: inline-grid;
   grid-template-columns: 24px 1fr;
   align-items: center;
   gap: 8px;
+  min-width: 132px;
 }
 
 .option-chip strong {
@@ -330,8 +345,29 @@ button {
   color: var(--cyan);
 }
 
-.prompt-chip {
-  grid-column: span 2;
+.example-prompts {
+  flex: 0 0 auto;
+  margin: 0 16px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.example-prompts summary {
+  cursor: pointer;
+  padding: 8px 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  list-style-position: inside;
+}
+
+.example-list {
+  display: grid;
+  gap: 6px;
+  max-height: 118px;
+  overflow-y: auto;
+  padding: 0 8px 8px;
 }
 
 .composer {
@@ -365,7 +401,8 @@ button {
 .icon-button:hover,
 .secondary-command:hover,
 .composer button:not(:disabled):hover,
-.prompt-grid button:not(:disabled):hover,
+.quick-actions button:not(:disabled):hover,
+.example-prompts button:not(:disabled):hover,
 .scene-rail button:hover,
 .layer-dock button:hover,
 .stop-list button:hover {
@@ -667,7 +704,7 @@ button {
     min-height: 440px;
   }
 
-  .prompt-grid,
+  .quick-actions,
   .metric-grid {
     grid-template-columns: 1fr;
   }
