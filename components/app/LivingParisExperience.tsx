@@ -12,17 +12,19 @@ import {
   Send,
   Sparkles,
   Wifi,
-  WifiOff
+  WifiOff,
 } from "lucide-react";
+import { LanguageProvider, useLanguage } from "@/components/app/LanguageProvider";
+import { LanguageSelector } from "@/components/app/LanguageSelector";
 import { ParisMapCanvas, type VisibleMapLayers } from "@/components/map/ParisMapCanvas";
 import type { BackendSource, ExperienceResponse } from "@/lib/experience-types";
 import {
-  sceneById,
   sceneMapStateById,
   scenes,
   type Coordinate,
-  type SceneId
+  type SceneId,
 } from "@/lib/parisVisualizationData";
+import type { Messages } from "@/lib/i18n";
 import type { IntentQuery, LayerMeta, ParisFeature } from "@/lib/types";
 
 type ApiStatus = "checking" | "worker" | "local" | "offline";
@@ -38,88 +40,33 @@ type StatusResponse = {
   warnings: string[];
 };
 
-type LayerToggle = {
-  id: keyof VisibleMapLayers;
-  label: string;
-  icon: typeof Route;
-};
-
 const sceneIcons = {
   "borrowed-senses": Radio,
   "rainy-day": CloudRain,
   "date-night": Sparkles,
-  "hidden-gems": Map
+  "hidden-gems": Map,
 } satisfies Record<SceneId, typeof Route>;
 
-const layerToggles: LayerToggle[] = [
-  { id: "route", label: "Route", icon: Route },
-  { id: "places", label: "Places", icon: Map },
-  { id: "risk", label: "Signals", icon: Layers },
-  { id: "senses", label: "Senses", icon: Radio }
-];
-
-const promptChips = [
-  "Plan a romantic evening under EUR 60.",
-  "It is raining and I have two hours before my train.",
-  "Show me quiet local places tourists miss.",
-  "I am blind near the Eiffel Tower. Take me to Trocadero."
-];
-
-const commonOptions = [
-  {
-    label: "Places to see",
-    prompt: "Show me places to see near central Paris: museums, parks, and scenic viewpoints.",
-    icon: Map
-  },
-  {
-    label: "Cafes",
-    prompt: "Find good cafes nearby with a short walk.",
-    icon: Sparkles
-  },
-  {
-    label: "Museums",
-    prompt: "Show me museums and art places I can visit today.",
-    icon: Layers
-  },
-  {
-    label: "Rain plan",
-    prompt: "It is raining. Find indoor places and metro-friendly stops.",
-    icon: CloudRain
-  },
-  {
-    label: "Accessible route",
-    prompt: "Find accessible places and build a step-free walking route.",
-    icon: Route
-  },
-  {
-    label: "Local gems",
-    prompt: "Show me quiet local places tourists usually miss.",
-    icon: Radio
-  }
-];
-
-const initialPrompt = promptChips[0];
-
-const initialMessages: Message[] = [
-  {
-    id: "assistant-initial",
-    role: "assistant",
-    text:
-      "Loading Paris datasets. Ask for an experience and I will query the spatial backend, route planner, and 3D map layers."
-  }
-];
-
 export function LivingParisExperience() {
+  return (
+    <LanguageProvider>
+      <LivingParisExperienceInner />
+    </LanguageProvider>
+  );
+}
+
+function LivingParisExperienceInner() {
+  const { t, ready } = useLanguage();
   const [activeSceneId, setActiveSceneId] = useState<SceneId>("date-night");
   const [visibleLayers, setVisibleLayers] = useState<VisibleMapLayers>({
     route: true,
     places: true,
     risk: true,
-    senses: true
+    senses: true,
   });
   const [selectedVenueId, setSelectedVenueId] = useState<string | null>(null);
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [apiStatus, setApiStatus] = useState<ApiStatus>("checking");
   const [backendSource, setBackendSource] = useState<BackendSource | null>(null);
@@ -127,8 +74,20 @@ export function LivingParisExperience() {
   const [experience, setExperience] = useState<ExperienceResponse | null>(null);
   const [isThinking, setIsThinking] = useState(false);
   const [isMapReady, setIsMapReady] = useState(false);
+  const [bootstrapped, setBootstrapped] = useState(false);
 
-  const activeScene = sceneById(activeSceneId);
+  const layerToggles = useMemo(
+    () =>
+      [
+        { id: "route" as const, label: t.layers.route, icon: Route },
+        { id: "places" as const, label: t.layers.places, icon: Map },
+        { id: "risk" as const, label: t.layers.signals, icon: Layers },
+        { id: "senses" as const, label: t.layers.senses, icon: Radio },
+      ] as const,
+    [t]
+  );
+
+  const activeScene = t.scenes[activeSceneId];
   const activeMapState = sceneMapStateById(activeSceneId);
   const backendFeatures = experience?.spatial.geojson.features ?? [];
   const routePath = useMemo(
@@ -149,22 +108,22 @@ export function LivingParisExperience() {
   const panelMetrics = experience
     ? [
         {
-          label: "backend matches",
+          label: t.experience.backendMatches,
           value: String(experience.spatial.totalFeatures),
-          tone: "places"
+          tone: "places" as const,
         },
         {
-          label: experience.route?.provider ?? "query radius",
+          label: experience.route?.provider ?? t.experience.queryRadius,
           value: experience.route
             ? `${experience.route.durationMinutes}m`
             : `${Math.round(experience.spatial.meta.radiusMeters)}m`,
-          tone: "route"
+          tone: "route" as const,
         },
         {
-          label: "query time",
+          label: t.experience.queryTime,
           value: `${experience.spatial.meta.queryMs}ms`,
-          tone: "senses"
-        }
+          tone: "senses" as const,
+        },
       ]
     : activeMapState.metrics;
 
@@ -183,9 +142,8 @@ export function LivingParisExperience() {
       {
         id: `assistant-reset-${Date.now()}`,
         role: "assistant",
-        text:
-          "New chat started. Pick a common option or describe what you want to do in Paris."
-      }
+        text: t.messages.reset,
+      },
     ]);
     setInput("");
     setExperience(null);
@@ -193,74 +151,17 @@ export function LivingParisExperience() {
     setSelectedVenueId(null);
     setActiveSceneId("date-night");
     setIsThinking(false);
-  }, []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    async function loadInitialExperience() {
-      try {
-        const statusResponse = await fetch("/api/chat", {
-          cache: "no-store",
-          signal: controller.signal
-        });
-
-        if (statusResponse.ok) {
-          const status = (await statusResponse.json()) as StatusResponse;
-          setBackendSource(status.backendSource);
-          setDatasets(status.datasets);
-          setApiStatus(status.backendSource === "worker" ? "worker" : "local");
-        }
-
-        const response = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: initialPrompt, currentSceneId: "date-night" }),
-          signal: controller.signal
-        });
-
-        if (!response.ok) throw new Error("Initial backend query failed");
-
-        const payload = (await response.json()) as ExperienceResponse;
-        applyExperience(payload);
-        setMessages([
-          initialMessages[0],
-          {
-            id: "assistant-backend-ready",
-            role: "assistant",
-            text: payload.reply
-          }
-        ]);
-      } catch {
-        if (!controller.signal.aborted) {
-          setApiStatus("offline");
-          setMessages([
-            initialMessages[0],
-            {
-              id: "assistant-backend-error",
-              role: "assistant",
-              text:
-                "I could not reach the spatial backend yet. The static map shell is still available while the API starts."
-            }
-          ]);
-        }
-      }
-    }
-
-    void loadInitialExperience();
-
-    return () => controller.abort();
-  }, [applyExperience]);
+  }, [t.messages.reset]);
 
   const runPrompt = useCallback(
-    async (text: string) => {
-      const trimmed = text.trim();
+    async (userText: string, apiText = userText) => {
+      const trimmed = userText.trim();
       if (!trimmed || isThinking) return;
 
       const userMessage: Message = {
         id: `user-${Date.now()}`,
         role: "user",
-        text: trimmed
+        text: trimmed,
       };
       setMessages((current) => [...current, userMessage]);
       setInput("");
@@ -270,7 +171,7 @@ export function LivingParisExperience() {
         const response = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: trimmed, currentSceneId: activeSceneId })
+          body: JSON.stringify({ message: apiText, currentSceneId: activeSceneId }),
         });
 
         if (!response.ok) {
@@ -284,8 +185,8 @@ export function LivingParisExperience() {
           {
             id: `assistant-${Date.now()}`,
             role: "assistant",
-            text: payload.reply
-          }
+            text: payload.reply,
+          },
         ]);
       } catch {
         setApiStatus("offline");
@@ -294,15 +195,94 @@ export function LivingParisExperience() {
           {
             id: `assistant-${Date.now()}`,
             role: "assistant",
-            text: "The backend query failed. Check that the Next server is still running, then try again."
-          }
+            text: t.messages.queryFailed,
+          },
         ]);
       } finally {
         setIsThinking(false);
       }
     },
-    [activeSceneId, applyExperience, isThinking]
+    [activeSceneId, applyExperience, isThinking, t.messages.queryFailed]
   );
+
+  useEffect(() => {
+    if (!ready || bootstrapped) return;
+
+    const controller = new AbortController();
+    const initialPrompt = t.promptChips[0]?.apiText ?? t.promptChips[0]?.userText;
+
+    async function loadInitialExperience() {
+      setMessages([
+        {
+          id: "assistant-initial",
+          role: "assistant",
+          text: t.messages.loading,
+        },
+      ]);
+
+      try {
+        const statusResponse = await fetch("/api/chat", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+
+        if (statusResponse.ok) {
+          const status = (await statusResponse.json()) as StatusResponse;
+          setBackendSource(status.backendSource);
+          setDatasets(status.datasets);
+          setApiStatus(status.backendSource === "worker" ? "worker" : "local");
+        }
+
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: initialPrompt, currentSceneId: "date-night" }),
+          signal: controller.signal,
+        });
+
+        if (!response.ok) throw new Error("Initial backend query failed");
+
+        const payload = (await response.json()) as ExperienceResponse;
+        applyExperience(payload);
+        setMessages([
+          {
+            id: "assistant-initial",
+            role: "assistant",
+            text: t.messages.loading,
+          },
+          {
+            id: "assistant-backend-ready",
+            role: "assistant",
+            text: payload.reply,
+          },
+        ]);
+      } catch {
+        if (!controller.signal.aborted) {
+          setApiStatus("offline");
+          setMessages([
+            {
+              id: "assistant-initial",
+              role: "assistant",
+              text: t.messages.loading,
+            },
+            {
+              id: "assistant-backend-error",
+              role: "assistant",
+              text: t.messages.backendError,
+            },
+          ]);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setBootstrapped(true);
+        }
+      }
+    }
+
+    void loadInitialExperience();
+
+    return () => controller.abort();
+  }, [applyExperience, bootstrapped, ready, t]);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -310,11 +290,11 @@ export function LivingParisExperience() {
   };
 
   const statusLabel = useMemo(() => {
-    if (apiStatus === "checking") return "checking backend";
-    if (apiStatus === "worker") return "Worker API online";
-    if (apiStatus === "local") return "local backend fallback";
-    return "backend disconnected";
-  }, [apiStatus]);
+    if (apiStatus === "checking") return t.status.checking;
+    if (apiStatus === "worker") return t.status.worker;
+    if (apiStatus === "local") return t.status.local;
+    return t.status.offline;
+  }, [apiStatus, t.status]);
 
   const StatusIcon = apiStatus === "offline" ? WifiOff : Wifi;
 
@@ -337,27 +317,30 @@ export function LivingParisExperience() {
         <div className="brand-lockup">
           <span className="brand-mark">LP</span>
           <div>
-            <p className="eyebrow">Living Paris</p>
-            <h1>Conversation-led city companion</h1>
+            <p className="eyebrow">{t.brand.eyebrow}</p>
+            <h1>{t.brand.title}</h1>
           </div>
         </div>
         <div className="runtime-status">
+          <LanguageSelector />
           <span className={apiStatus === "worker" ? "status-dot online" : "status-dot"} />
           <StatusIcon size={15} aria-hidden="true" />
           <span>{statusLabel}</span>
-          <span className="map-status">{isMapReady ? "3D map ready" : "loading map"}</span>
+          <span className="map-status">
+            {isMapReady ? t.status.mapReady : t.status.mapLoading}
+          </span>
         </div>
       </header>
 
-      <aside className="conversation-panel" aria-label="AI conversation">
+      <aside className="conversation-panel" aria-label={t.chat.panelTitle}>
         <div className="panel-header">
           <div>
-            <p className="eyebrow">Ask the city</p>
-            <h2>Chat interface</h2>
+            <p className="eyebrow">{t.chat.panelEyebrow}</p>
+            <h2>{t.chat.panelTitle}</h2>
           </div>
           <button className="secondary-command" type="button" onClick={resetChat}>
             <Plus size={16} aria-hidden="true" />
-            <span>New chat</span>
+            <span>{t.chat.newChat}</span>
           </button>
         </div>
 
@@ -368,20 +351,21 @@ export function LivingParisExperience() {
             </div>
           ))}
           {isThinking ? (
-            <div className="message-bubble assistant">Querying spatial backend...</div>
+            <div className="message-bubble assistant">{t.chat.thinking}</div>
           ) : null}
         </div>
 
-        <div className="quick-actions" aria-label="Common options">
-          {commonOptions.map((option) => {
-            const OptionIcon = option.icon;
+        <div className="quick-actions" aria-label={t.chat.panelEyebrow}>
+          {t.commonOptions.map((option, index) => {
+            const optionIcons = [Map, Sparkles, Layers, CloudRain, Route, Radio] as const;
+            const OptionIcon = optionIcons[index] ?? Map;
             return (
               <button
                 className="option-chip"
                 disabled={isThinking}
                 key={option.label}
                 type="button"
-                onClick={() => void runPrompt(option.prompt)}
+                onClick={() => void runPrompt(option.userText, option.apiText)}
               >
                 <span className="option-icon">
                   <OptionIcon size={15} aria-hidden="true" />
@@ -393,16 +377,16 @@ export function LivingParisExperience() {
         </div>
 
         <details className="example-prompts">
-          <summary>Examples</summary>
+          <summary>{t.chat.examples}</summary>
           <div className="example-list">
-            {promptChips.map((prompt) => (
+            {t.promptChips.map((prompt) => (
               <button
                 disabled={isThinking}
-                key={prompt}
+                key={prompt.label}
                 type="button"
-                onClick={() => void runPrompt(prompt)}
+                onClick={() => void runPrompt(prompt.userText, prompt.apiText)}
               >
-                {prompt}
+                {prompt.userText}
               </button>
             ))}
           </div>
@@ -410,18 +394,22 @@ export function LivingParisExperience() {
 
         <form className="composer" onSubmit={handleSubmit}>
           <input
-            aria-label="Message"
+            aria-label={t.chat.send}
             value={input}
             onChange={(event) => setInput(event.target.value)}
-            placeholder="Describe the experience you want..."
+            placeholder={t.chat.placeholder}
           />
-          <button type="submit" aria-label="Send message" disabled={isThinking || input.trim() === ""}>
+          <button
+            type="submit"
+            aria-label={t.chat.send}
+            disabled={isThinking || input.trim() === ""}
+          >
             <Send size={17} aria-hidden="true" />
           </button>
         </form>
       </aside>
 
-      <aside className="experience-panel" aria-label="Current experience">
+      <aside className="experience-panel" aria-label={t.experience.panelLabel}>
         <div className="scene-badge">
           {(() => {
             const SceneIcon = sceneIcons[activeSceneId];
@@ -435,13 +423,17 @@ export function LivingParisExperience() {
         <div className="backend-strip">
           <span>
             <Database size={14} aria-hidden="true" />
-            {datasets.length || experience?.datasets.length || 0} datasets
+            {datasets.length || experience?.datasets.length || 0} {t.experience.datasets}
           </span>
-          <span>{backendSource === "worker" ? "Cloudflare Worker" : "FileDataStore"}</span>
+          <span>
+            {backendSource === "worker"
+              ? t.experience.workerBackend
+              : t.experience.localBackend}
+          </span>
         </div>
 
         <div className="intent-row">
-          {intentTokens(experience?.intent, experience?.spatial.layers).map((token) => (
+          {intentTokens(t, experience?.intent, experience?.spatial.layers).map((token) => (
             <span key={`${token.label}-${token.value}`}>
               {token.label}: {token.value}
             </span>
@@ -469,7 +461,7 @@ export function LivingParisExperience() {
                   <span>{index + 1}</span>
                   <div>
                     <strong>{feature.properties.name}</strong>
-                    <small>{featureMeta(feature)}</small>
+                    <small>{featureMeta(t, feature)}</small>
                   </div>
                 </button>
               ))
@@ -485,7 +477,9 @@ export function LivingParisExperience() {
                     <strong>{venue.name}</strong>
                     <small>
                       {venue.category}
-                      {venue.walkMinutes ? ` · ${venue.walkMinutes} min walk` : ""}
+                      {venue.walkMinutes
+                        ? ` · ${venue.walkMinutes} ${t.experience.minWalk}`
+                        : ""}
                     </small>
                   </div>
                 </button>
@@ -493,24 +487,25 @@ export function LivingParisExperience() {
         </div>
       </aside>
 
-      <nav className="scene-rail" aria-label="Experience presets">
+      <nav className="scene-rail" aria-label={t.experience.panelLabel}>
         {scenes.map((scene) => {
           const SceneIcon = sceneIcons[scene.id];
+          const copy = t.scenes[scene.id];
           return (
             <button
               className={scene.id === activeSceneId ? "active" : ""}
               key={scene.id}
               type="button"
-              onClick={() => void runPrompt(scene.command)}
+              onClick={() => void runPrompt(copy.command, copy.command)}
             >
               <SceneIcon size={17} aria-hidden="true" />
-              <span>{scene.label}</span>
+              <span>{copy.label}</span>
             </button>
           );
         })}
       </nav>
 
-      <div className="layer-dock" aria-label="Map layers">
+      <div className="layer-dock" aria-label={t.layers.places}>
         {layerToggles.map((layer) => {
           const LayerIcon = layer.icon;
           const isActive = visibleLayers[layer.id];
@@ -523,7 +518,7 @@ export function LivingParisExperience() {
               onClick={() =>
                 setVisibleLayers((current) => ({
                   ...current,
-                  [layer.id]: !current[layer.id]
+                  [layer.id]: !current[layer.id],
                 }))
               }
             >
@@ -537,34 +532,34 @@ export function LivingParisExperience() {
   );
 }
 
-function intentTokens(intent?: IntentQuery, layers?: string[]) {
+function intentTokens(t: Messages, intent?: IntentQuery, layers?: string[]) {
   if (!intent) {
     return [
-      { label: "mode", value: "initializing" },
-      { label: "layers", value: "scene defaults" }
+      { label: t.intent.mode, value: t.intent.initializing },
+      { label: t.intent.layers, value: t.intent.sceneDefaults },
     ];
   }
 
   const tokens = [
-    { label: "mood", value: intent.mood ?? "general" },
-    { label: "layers", value: layers?.join(", ") ?? "auto" },
-    { label: "walk", value: intent.walk ? `${intent.walk}m` : "auto" }
+    { label: t.intent.mood, value: intent.mood ?? t.intent.general },
+    { label: t.intent.layers, value: layers?.join(", ") ?? t.intent.auto },
+    { label: t.intent.walk, value: intent.walk ? `${intent.walk}m` : t.intent.auto },
   ];
 
-  if (intent.budget) tokens.push({ label: "budget", value: `EUR ${intent.budget}` });
-  if (intent.accessibility) tokens.push({ label: "access", value: "step-free" });
-  if (intent.rainy) tokens.push({ label: "weather", value: "rain-aware" });
+  if (intent.budget) tokens.push({ label: t.intent.budget, value: `EUR ${intent.budget}` });
+  if (intent.accessibility) tokens.push({ label: t.intent.access, value: t.intent.stepFree });
+  if (intent.rainy) tokens.push({ label: t.intent.weather, value: t.intent.rainAware });
 
   return tokens;
 }
 
-function featureMeta(feature: ParisFeature) {
+function featureMeta(t: Messages, feature: ParisFeature) {
   const props = feature.properties;
   const parts = [layerLabel(props.layer)];
   if (props.address) parts.push(props.address);
   if (props.arrondissement) parts.push(props.arrondissement);
-  if (props.indoor) parts.push("indoor");
-  if (props.accessible) parts.push("accessible");
+  if (props.indoor) parts.push(t.experience.indoor);
+  if (props.accessible) parts.push(t.experience.accessible);
   return parts.join(" · ");
 }
 
