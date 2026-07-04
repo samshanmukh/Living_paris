@@ -1,0 +1,61 @@
+---
+description: AI & Voice (Ali) — read before any chat, OpenRouter, or voice work
+globs:
+  - "services/ai/**"
+  - "app/api/chat/**"
+  - "features/voice/**"
+  - "hooks/useChat.ts"
+  - "lib/chat-types.ts"
+  - "scripts/test-intent.mjs"
+  - "scripts/test-chat.mjs"
+alwaysApply: false
+---
+
+# AI & Voice — Agent Rules
+
+**Read the full plan first:** `docs/AI_VOICE_PLAN.md`
+
+## Role
+
+Member 3 — AI & Voice. Build `POST /api/chat` + voice hooks. Do not build map UI or data layer.
+
+## Allowed paths (edit only these)
+
+- `services/ai/*`
+- `app/api/chat/*`
+- `features/voice/*`
+- `hooks/useChat.ts`
+- `lib/chat-types.ts`
+- `scripts/test-intent.mjs`, `scripts/test-chat.mjs`
+
+## Forbidden (never edit)
+
+- `workers/`, `services/data/`, `services/experience/`, `services/routing/`
+- `features/chat/`, `features/map/`, `app/page.tsx`
+- `lib/intent-schema.ts`, `lib/types.ts` (read only)
+
+## Backend integration
+
+- Call Siddharth's API via HTTP: `POST ${API_URL}/api/spatial/query`
+- Default `API_URL`: `http://localhost:8787`
+- **Never** import from `services/data/*` or `spatial-engine`
+
+## AI integration
+
+- OpenRouter → Grok via `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` in `.env.local`
+- Default model: **`x-ai/grok-4.3`** — do not use retired `x-ai/grok-2-1212`
+- Intent output must validate with `intentSchema` from `lib/intent-schema.ts`
+
+## Multi-agent order
+
+1. Contracts → 2. Intent → 3. Chat API → 4. Voice/client  
+All on branch **`cursor/ai-voice-plan`** (PR #6). Commit + push after each agent passes exit checks.  
+Use **one Cursor session** for full context. See `docs/AI_VOICE_PLAN.md`.
+
+## Before finishing
+
+```bash
+git diff master --name-only   # must be only allowed paths
+```
+
+Run the exit checks for your agent number in `docs/AI_VOICE_PLAN.md`.
