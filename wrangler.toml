@@ -17,6 +17,11 @@ port = 8787
 
 # Optional production env with R2 (requires bucket + upload-data:remote).
 [env.production]
+[env.production.assets]
+directory = "./public/data"
+binding = "ASSETS"
+run_worker_first = ["/api/*"]
+
 [[env.production.r2_buckets]]
 binding = "DATA"
 bucket_name = "living-paris-geojson"
