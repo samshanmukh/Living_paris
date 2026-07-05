@@ -172,6 +172,9 @@ export interface MapMarker {
   score: number;
   highlighted: boolean;
   reasons: string[];
+  noiseLevel?: number;
+  airQualityIndex?: number;
+  capacity?: number;
 }
 
 export interface MapState {

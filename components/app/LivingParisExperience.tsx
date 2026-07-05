@@ -9,8 +9,8 @@ import { LanguageSelector } from "@/components/app/LanguageSelector";
 import ChatSheet, { type ChatMessage } from "@/features/chat/ChatSheet";
 import ExperienceCard from "@/features/experience/ExperienceCard";
 import { useSpeechSynthesis } from "@/features/voice/useSpeechSynthesis";
+import { useChat } from "@/hooks/useChat";
 import { MODE_PROMPTS, OPENING_CHIP_IDS } from "@/lib/mode-prompts";
-import type { IntegratedChatResponse } from "@/lib/integrated-chat-types";
 import type { ExperienceResult, IntentQuery, MapTheme } from "@/lib/types";
 
 const MapCanvas = dynamic(() => import("@/features/map/MapCanvas"), {
@@ -53,6 +53,7 @@ function LivingParisExperienceInner() {
   const { t, locale } = useLanguage();
   const speechLang = locale === "fr" ? "fr-FR" : "en-US";
   const { speak } = useSpeechSynthesis(speechLang);
+  const { sendMessage } = useChat();
 
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -89,20 +90,12 @@ function LivingParisExperienceInner() {
             content: m.text,
           }));
 
-        const res = await fetch("/api/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            message: text,
-            intent: intentRef.current,
-            history,
-            context: { lat: 48.8566, lon: 2.3522 },
-          }),
+        const data = await sendMessage(text, {
+          intent: intentRef.current,
+          history,
+          context: { lat: 48.8566, lon: 2.3522 },
           signal: controller.signal,
         });
-
-        if (!res.ok) throw new Error(`chat failed: ${res.status}`);
-        const data = (await res.json()) as IntegratedChatResponse;
 
         intentRef.current = data.intent;
         setRedrawing(true);
@@ -136,7 +129,7 @@ function LivingParisExperienceInner() {
         }
       }
     },
-    [messages, speak, speechLang, t.messages.queryFailed]
+    [messages, sendMessage, speak, speechLang, t.messages.queryFailed]
   );
 
   const theme: MapTheme = result?.mapState.theme ?? "day";

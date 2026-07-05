@@ -1,11 +1,13 @@
 import type {
   ExperienceResult,
+  ExperienceId,
   IntentQuery,
   LayerType,
   MapMarker,
   MapState,
   ScoredFeature,
 } from "@/lib/types";
+import { CONTEXT_OVERLAY_BY_EXPERIENCE } from "@/lib/map-layer-styles";
 import { loadLayers } from "@/services/data/loader";
 import {
   filterWithinRadius,
@@ -23,13 +25,18 @@ const MAX_MARKERS = 40;
 const NON_DESTINATION_LAYERS: LayerType[] = ["metro", "bikes", "noise", "air-quality"];
 
 function layersForMode(
+  modeId: ExperienceId,
   layerWeights: Partial<Record<LayerType, number>>,
   override?: LayerType[]
 ): LayerType[] {
-  if (override?.length) return override;
-  return (Object.entries(layerWeights) as [LayerType, number][])
-    .sort((a, b) => b[1] - a[1])
-    .map(([layer]) => layer);
+  const primary = override?.length
+    ? override
+    : (Object.entries(layerWeights) as [LayerType, number][])
+        .sort((a, b) => b[1] - a[1])
+        .map(([layer]) => layer);
+
+  const context = CONTEXT_OVERLAY_BY_EXPERIENCE[modeId] ?? [];
+  return [...new Set([...primary, ...context])];
 }
 
 /** Center the camera on the itinerary rather than the raw query center. */
@@ -60,7 +67,7 @@ export async function runExperience(intent: IntentQuery): Promise<ExperienceResu
   const start = performance.now();
 
   const mode = resolveExperience(intent);
-  const layers = layersForMode(mode.layerWeights, intent.layers);
+  const layers = layersForMode(mode.id, mode.layerWeights, intent.layers);
   const center = resolveCenter(intent);
   const radiusMeters = resolveRadius(intent);
 
@@ -98,6 +105,9 @@ export async function runExperience(intent: IntentQuery): Promise<ExperienceResu
     score: Math.round(s.score * 10) / 10,
     highlighted: itineraryIds.has(s.feature.properties.id),
     reasons: s.reasons,
+    noiseLevel: s.feature.properties.noiseLevel,
+    airQualityIndex: s.feature.properties.airQualityIndex,
+    capacity: s.feature.properties.capacity,
   }));
 
   const mapState: MapState = {
