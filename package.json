@@ -13,7 +13,9 @@
     "upload-data:remote": "node scripts/upload-r2-data.mjs --remote",
     "deploy:api": "wrangler deploy --env=\"\"",
     "deploy:api:production": "wrangler deploy --env production",
-    "test:api": "tsx --test tests/spatial-query.test.ts tests/parse-intent.test.ts"
+    "test:api": "tsx --test tests/spatial-query.test.ts tests/parse-intent.test.ts",
+    "probe:sources": "node scripts/probe/probe-sources.mjs",
+    "test:persona": "tsx --test tests/persona/**/*.test.ts"
   },
   "dependencies": {
     "@deck.gl/aggregation-layers": "^9.3.6",
