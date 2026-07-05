@@ -35,6 +35,7 @@ export async function chatCompletion(options: {
       model: getOpenRouterModel(),
       messages: options.messages,
       temperature: 0.2,
+      max_tokens: options.jsonMode ? 512 : 1024,
       ...(options.jsonMode ? { response_format: { type: "json_object" } } : {}),
     }),
   });

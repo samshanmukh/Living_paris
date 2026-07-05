@@ -23,15 +23,24 @@ interface SpeechRecognitionResultEvent extends Event {
   results: SpeechRecognitionResultList;
 }
 
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+}
+
 interface SpeechRecognitionInstance extends EventTarget {
   lang: string;
   interimResults: boolean;
   continuous: boolean;
   onresult: ((event: SpeechRecognitionResultEvent) => void) | null;
-  onerror: ((event: Event) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
   onend: (() => void) | null;
   start(): void;
   stop(): void;
+}
+
+/** Chrome fires "aborted" when the session ends normally — not a user-facing failure. */
+function isBenignRecognitionError(code: string): boolean {
+  return code === "aborted" || code === "no-speech";
 }
 
 function getSpeechRecognition(): SpeechRecognitionCtor | null {
@@ -83,12 +92,18 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}) 
       }
       setTranscript(text.trim());
       if (event.results[event.results.length - 1]?.isFinal) {
+        setError(null);
         onFinalTranscript?.(text.trim());
       }
     };
 
-    recognition.onerror = () => {
-      setError("Could not capture speech. Try typing instead.");
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+      if (isBenignRecognitionError(event.error)) return;
+      setError(
+        event.error === "not-allowed"
+          ? "Microphone permission denied."
+          : "Could not capture speech. Try typing instead."
+      );
       setListening(false);
     };
 
