@@ -1,21 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { motionTransition, springSnappy } from "@/lib/motion-presets";
 
 interface IntentResponseBubbleProps {
   response: string | null;
   accentColor: string;
+  /** Delay bubble until drawer stops begin appearing. */
+  revealDelay?: number;
 }
 
 export default function IntentResponseBubble({
   response,
   accentColor,
+  revealDelay = 0.4,
 }: IntentResponseBubbleProps) {
+  const reducedMotion = useReducedMotion();
   const [visible, setVisible] = useState(false);
   const [lastResponse, setLastResponse] = useState<string | null>(null);
 
-  // Derived-state-during-render: show the bubble whenever a new response lands.
   if (response !== lastResponse) {
     setLastResponse(response);
     setVisible(response != null);
@@ -32,18 +36,24 @@ export default function IntentResponseBubble({
       {response && visible && (
         <motion.div
           key={response}
-          initial={{ opacity: 0, y: 10, scale: 0.96 }}
+          initial={{ opacity: 0, y: 12, scale: 0.94 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 8, scale: 0.96 }}
-          transition={{ type: "spring", stiffness: 360, damping: 28 }}
+          transition={motionTransition(reducedMotion ?? false, {
+            ...springSnappy,
+            delay: reducedMotion ? 0 : revealDelay,
+          })}
           className="pointer-events-none mx-4 mb-2 max-w-md sm:max-w-lg"
         >
           <div
-            className="lp-glass-strong rounded-2xl border px-3.5 py-2.5"
-            style={{ borderColor: `${accentColor}55` }}
+            className="lp-glass-strong rounded-2xl border px-3.5 py-2.5 transition-[border-color,box-shadow] duration-500"
+            style={{
+              borderColor: `${accentColor}55`,
+              boxShadow: `0 10px 28px -12px ${accentColor}44`,
+            }}
           >
             <p
-              className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
+              className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors duration-500"
               style={{ color: accentColor }}
             >
               Paris

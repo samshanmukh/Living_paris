@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ChevronUp, Mic, Send, Square } from "lucide-react";
 import { Drawer } from "vaul";
 import IntentPresetChips from "@/features/intent/IntentPresetChips";
 import { useSpeechRecognition } from "@/features/voice/useSpeechRecognition";
+import { messageVariants, motionTransition, stopVariants } from "@/lib/motion-presets";
 import { cn } from "@/lib/utils";
 import type { LivingParisIntent, PresetIntentId } from "@/lib/living-paris-intent";
 
@@ -52,6 +53,7 @@ export default function IntentDrawer({
   const [draft, setDraft] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const expanded = snap === EXPANDED_SNAP;
+  const reducedMotion = useReducedMotion() ?? false;
 
   const send = useCallback(
     (text: string) => {
@@ -159,7 +161,7 @@ export default function IntentDrawer({
         <Drawer.Portal>
           <Drawer.Content
             aria-describedby={undefined}
-            className="lp-glass-strong fixed inset-x-0 bottom-0 z-20 mx-auto flex h-full max-h-[96%] w-full max-w-md flex-col rounded-t-[28px] border border-[#e5dbc9] outline-none sm:max-w-lg"
+            className="lp-drawer-accent lp-glass-strong fixed inset-x-0 bottom-0 z-20 mx-auto flex h-full max-h-[96%] w-full max-w-md flex-col rounded-t-[28px] border border-[#e5dbc9] outline-none sm:max-w-lg"
             style={{ boxShadow: `0 -12px 44px -18px rgba(94,76,56,0.4), 0 0 32px ${intent.glowColor}` }}
           >
             <Drawer.Title className="sr-only">Living Paris plan</Drawer.Title>
@@ -175,19 +177,41 @@ export default function IntentDrawer({
             >
               {intent.icon}
               <div className="min-w-0 flex-1">
-                <p className="font-display text-[15px] font-semibold leading-tight text-[#2b241c]">
+                <motion.p
+                  key={intent.title}
+                  initial={reducedMotion ? false : { opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={motionTransition(reducedMotion, { duration: 0.35 })}
+                  className="font-display text-[15px] font-semibold leading-tight text-[#2b241c]"
+                >
                   {intent.title}
-                </p>
-                <p className="truncate text-[12px] text-[#8a7d6b]">
-                  {isGenerating
-                    ? "Living Paris is planning…"
-                    : hasPlan
-                      ? `${intent.stops.length} stops · ${intent.distance} · ${intent.duration}`
-                      : intent.subtitle}
-                </p>
+                </motion.p>
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.p
+                    key={
+                      isGenerating
+                        ? "planning"
+                        : hasPlan
+                          ? `plan-${intent.stops.length}`
+                          : "subtitle"
+                    }
+                    initial={reducedMotion ? false : { opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={reducedMotion ? undefined : { opacity: 0, y: -5 }}
+                    transition={motionTransition(reducedMotion, { duration: 0.28 })}
+                    className="truncate text-[12px] text-[#8a7d6b]"
+                  >
+                    {isGenerating
+                      ? "Living Paris is planning…"
+                      : hasPlan
+                        ? `${intent.stops.length} stops · ${intent.distance} · ${intent.duration}`
+                        : intent.subtitle}
+                  </motion.p>
+                </AnimatePresence>
               </div>
               <motion.span
                 animate={{ rotate: expanded ? 180 : 0 }}
+                transition={motionTransition(reducedMotion, { duration: 0.3 })}
                 className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#efe7d8] text-[#6b6155]"
               >
                 <ChevronUp size={14} />
@@ -228,11 +252,11 @@ export default function IntentDrawer({
               )}
               <motion.button
                 type="button"
-                whileTap={{ scale: 0.9 }}
+                whileTap={reducedMotion ? undefined : { scale: 0.9 }}
                 onClick={() => send(draft)}
                 disabled={!draft.trim() || isGenerating}
                 aria-label="Send"
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-white transition-opacity disabled:opacity-35"
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-white transition-[background-color,opacity] duration-500 disabled:opacity-35"
                 style={{ backgroundColor: intent.accentColor }}
               >
                 <Send size={17} />
@@ -268,20 +292,21 @@ export default function IntentDrawer({
               )}
 
               <AnimatePresence mode="wait" initial={false}>
-                {hasPlan && (
+                {hasPlan && !isGenerating && (
                   <motion.div
                     key={intent.id + intent.stops.length}
-                    initial={{ opacity: 0, y: 14 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
+                    initial={reducedMotion ? false : { opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={reducedMotion ? undefined : { opacity: 0 }}
+                    transition={motionTransition(reducedMotion, { duration: 0.25 })}
                     className="space-y-2"
                   >
                     {intent.stops.map((stop, index) => (
                       <motion.div
                         key={stop.id}
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.05 * index }}
+                        variants={stopVariants(index, reducedMotion)}
+                        initial={reducedMotion ? false : "initial"}
+                        animate="animate"
                         className={cn(
                           "flex gap-3 rounded-2xl border border-[#ece2d0] bg-white/75 p-2.5",
                           focusedStopId === stop.id && "ring-1 ring-[#d8ccb8]"
@@ -326,29 +351,36 @@ export default function IntentDrawer({
                 )}
               </AnimatePresence>
 
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={cn(
-                    "max-w-[88%] rounded-2xl px-3.5 py-2.5 text-[13.5px] leading-snug",
-                    message.role === "user"
-                      ? "ml-auto rounded-br-md text-white"
-                      : "mr-auto rounded-bl-md border border-[#ece2d0] bg-white/80 text-[#2b241c]"
-                  )}
-                  style={
-                    message.role === "user"
-                      ? { backgroundColor: intent.accentColor }
-                      : undefined
-                  }
-                >
-                  {message.role === "paris" && (
-                    <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#a09380]">
-                      Paris
-                    </span>
-                  )}
-                  {message.text}
-                </div>
-              ))}
+              <AnimatePresence initial={false}>
+                {messages.map((message) => (
+                  <motion.div
+                    key={message.id}
+                    variants={messageVariants(message.role)}
+                    initial={reducedMotion ? false : "initial"}
+                    animate="animate"
+                    exit="exit"
+                    transition={motionTransition(reducedMotion)}
+                    className={cn(
+                      "max-w-[88%] rounded-2xl px-3.5 py-2.5 text-[13.5px] leading-snug",
+                      message.role === "user"
+                        ? "ml-auto rounded-br-md text-white"
+                        : "mr-auto rounded-bl-md border border-[#ece2d0] bg-white/80 text-[#2b241c]"
+                    )}
+                    style={
+                      message.role === "user"
+                        ? { backgroundColor: intent.accentColor }
+                        : undefined
+                    }
+                  >
+                    {message.role === "paris" && (
+                      <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#a09380]">
+                        Paris
+                      </span>
+                    )}
+                    {message.text}
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </div>
           </Drawer.Content>
         </Drawer.Portal>

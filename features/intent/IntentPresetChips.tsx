@@ -1,7 +1,8 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import type { PresetIntentId } from "@/lib/living-paris-intent";
+import { chipVariants } from "@/lib/motion-presets";
 
 interface PresetChip {
   id: PresetIntentId;
@@ -23,18 +24,23 @@ export default function IntentPresetChips({
   disabled,
   onSelect,
 }: IntentPresetChipsProps) {
+  const reducedMotion = useReducedMotion();
+
   return (
     <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pb-2">
-      {presets.map((preset) => {
+      {presets.map((preset, index) => {
         const selected = selectedId === preset.id;
         return (
           <motion.button
             key={preset.id}
             type="button"
-            whileTap={{ scale: 0.94 }}
+            variants={chipVariants(index)}
+            initial={reducedMotion ? false : "initial"}
+            animate="animate"
+            whileTap={reducedMotion ? undefined : { scale: 0.94 }}
             disabled={disabled}
             onClick={() => onSelect(preset.id)}
-            className={`shrink-0 rounded-full border px-3.5 py-1.5 text-[12px] font-medium transition-all disabled:opacity-45 ${
+            className={`shrink-0 rounded-full border px-3.5 py-1.5 text-[12px] font-medium transition-colors duration-500 disabled:opacity-45 ${
               selected
                 ? "border-transparent text-white shadow-lg"
                 : "lp-glass border-[#e0d5c2] text-[#6b6155] hover:border-[#c9b995] hover:text-[#2b241c]"
