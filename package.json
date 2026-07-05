@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:9000": "next dev -p 9000",
     "dev:api": "wrangler dev",
     "build": "next build",
     "start": "next start",

@@ -1,11 +1,10 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import type { DemoScenarioId } from "@/lib/demo-bundles";
 import type { PresetIntentId } from "@/lib/living-paris-intent";
 import { chipVariants } from "@/lib/motion-presets";
 
-export type ScenarioChipId = PresetIntentId | DemoScenarioId;
+export type ScenarioChipId = PresetIntentId;
 
 export interface PresetChipOption {
   id: ScenarioChipId;

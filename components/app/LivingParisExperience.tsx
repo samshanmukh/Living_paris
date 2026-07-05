@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { AnimatePresence, motion } from "framer-motion";
 import { LanguageProvider } from "@/components/app/LanguageProvider";
@@ -9,7 +9,6 @@ import UiDevToolbar from "@/features/dev/UiDevToolbar";
 import IntentDrawer, { type ChatMessage } from "@/features/intent/IntentDrawer";
 import IntentMoodOverlay, { IntentHeader } from "@/features/intent/IntentMoodOverlay";
 import IntentResponseBubble from "@/features/intent/IntentResponseBubble";
-import DioramaStage from "@/features/diorama/DioramaStage";
 import MapLayerControls from "@/features/map/MapLayerControls";
 import MapSnapshotLayer from "@/features/map/MapSnapshotLayer";
 import { useSpeechSynthesis } from "@/features/voice/useSpeechSynthesis";
@@ -18,8 +17,8 @@ import { useLivingParisIntent } from "@/hooks/useLivingParisIntent";
 const MapCanvas = dynamic(() => import("@/features/map/MapCanvas"), {
   ssr: false,
   loading: () => (
-    <div className="absolute inset-0 grid place-items-center bg-[#efe9df]">
-      <span className="font-display text-sm text-[#8a7d6b]">Waking Paris…</span>
+    <div className="absolute inset-0 grid place-items-center bg-[var(--paper,#efe9df)]">
+      <span className="font-display text-sm text-[var(--ink-soft,#8a7d6b)]">Waking Paris…</span>
     </div>
   ),
 });
@@ -47,12 +46,9 @@ function LivingParisExperienceInner() {
     livingParisResponse,
     intentSource,
     result,
-    routeGeometry,
     hiddenLayers,
     toggleLayer,
     devCache,
-    activeDemoBundle,
-    isDemoMode,
   } = useLivingParisIntent();
 
   const {
@@ -72,6 +68,19 @@ function LivingParisExperienceInner() {
   const [expandSignal, setExpandSignal] = useState(0);
   const lastSpokenRef = useRef<string | null>(null);
   const mapCaptureRef = useRef<(() => Promise<string | null>) | null>(null);
+
+  const highlightedIds = useMemo(
+    () => new Set(currentIntent.stops.map((stop) => stop.id)),
+    [currentIntent.stops]
+  );
+
+  const stopOrder = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const stop of currentIntent.stops) {
+      map.set(stop.id, stop.number);
+    }
+    return map;
+  }, [currentIntent.stops]);
 
   useEffect(() => {
     if (!livingParisResponse || livingParisResponse === lastSpokenRef.current) return;
@@ -107,7 +116,6 @@ function LivingParisExperienceInner() {
   }, []);
 
   const pushErrorUnlessAborted = useCallback((error: unknown) => {
-    // Superseded requests abort silently — the newer query owns the UI.
     if (error instanceof DOMException && error.name === "AbortError") return;
     setMessages((prev) => [
       ...prev,
@@ -150,27 +158,17 @@ function LivingParisExperienceInner() {
     selectedPresetId != null || messages.length > 0 || currentIntent.id !== "idle";
 
   return (
-    <main className="lp-dark relative h-dvh w-full overflow-hidden bg-[#efe9df]">
-      {isDemoMode ? (
-        <DioramaStage
-          bundle={activeDemoBundle}
-          routeAccentColor={currentIntent.accentColor}
-          onMarkerClick={(id) => {
-            setFocusedStopId(id);
-            setExpandSignal((value) => value + 1);
-          }}
-        />
-      ) : mapFrozen && mapSnapshot ? (
+    <main className="lp-dark relative h-dvh w-full overflow-hidden bg-[var(--paper,#efe9df)]">
+      {mapFrozen && mapSnapshot ? (
         <MapSnapshotLayer
           src={mapSnapshot}
           accentColor={currentIntent.accentColor}
         />
       ) : (
         <MapCanvas
-          mapState={result?.mapState ?? null}
-          routeGeometry={routeGeometry}
-          hiddenLayers={hiddenLayers}
           routeAccentColor={currentIntent.accentColor}
+          highlightedIds={highlightedIds}
+          stopOrder={stopOrder}
           snapshotCapture={devCacheEnabled && useLiveMap}
           onCaptureReady={handleCaptureReady}
           onMarkerClick={(id) => {
@@ -190,29 +188,21 @@ function LivingParisExperienceInner() {
       </div>
 
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col items-center gap-2 px-4 pt-[max(0.9rem,env(safe-area-inset-top))]">
-        {!isDemoMode && (
-          <div className="pointer-events-auto flex w-full max-w-md items-center justify-between gap-2 sm:max-w-lg">
-            <div className="lp-glass flex flex-1 items-center rounded-full border border-[#e5dbc9] px-3 py-2">
-              <motion.span
-                className="mr-2 grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold text-white"
-                animate={{ backgroundColor: currentIntent.accentColor }}
-                transition={{ duration: 0.55, ease: "easeInOut" }}
-              >
-                P
-              </motion.span>
-              <span className="font-display text-[14px] font-semibold tracking-tight text-[#2b241c]">
-                Living Paris
-              </span>
-            </div>
-            <LanguageSelector />
+        <div className="pointer-events-auto flex w-full max-w-md items-center justify-between gap-2 sm:max-w-lg">
+          <div className="lp-glass flex flex-1 items-center rounded-full border border-[#e5dbc9] px-3 py-2">
+            <motion.span
+              className="mr-2 grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold text-white"
+              animate={{ backgroundColor: currentIntent.accentColor }}
+              transition={{ duration: 0.55, ease: "easeInOut" }}
+            >
+              P
+            </motion.span>
+            <span className="font-display text-[14px] font-semibold tracking-tight text-[#2b241c]">
+              Living Paris
+            </span>
           </div>
-        )}
-
-        {isDemoMode && (
-          <div className="pointer-events-auto absolute right-4 top-[max(0.9rem,env(safe-area-inset-top))]">
-            <LanguageSelector />
-          </div>
-        )}
+          <LanguageSelector />
+        </div>
 
         {hasStarted && (
           <IntentHeader
@@ -222,7 +212,7 @@ function LivingParisExperienceInner() {
           />
         )}
 
-        {result?.mapState.visibleLayers && !isDemoMode && (
+        {result?.mapState.visibleLayers && (
           <MapLayerControls
             visibleLayers={result.mapState.visibleLayers}
             hiddenLayers={hiddenLayers}
