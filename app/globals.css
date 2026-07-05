@@ -120,6 +120,46 @@ body {
     border-color 0.55s ease;
 }
 
+.lp-diorama-sun {
+  animation: lp-sun-pulse 4s ease-in-out infinite;
+}
+
+.lp-diorama-window {
+  animation: lp-window-flicker 3.5s ease-in-out infinite;
+}
+
+@keyframes lp-sun-pulse {
+  0%,
+  100% {
+    opacity: 0.92;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes lp-window-flicker {
+  0%,
+  100% {
+    opacity: 0.75;
+  }
+  40% {
+    opacity: 0.95;
+  }
+  55% {
+    opacity: 0.7;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-diorama-sun,
+  .lp-diorama-window {
+    animation: none;
+  }
+}
+
 @keyframes lp-marker-in {
   from {
     opacity: 0;
