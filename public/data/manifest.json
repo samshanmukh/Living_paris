@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-04T21:30:22.916Z",
+  "updatedAt": "2026-07-05T05:34:36.875Z",
   "layers": [
     {
       "id": "cafes",
@@ -45,6 +45,21 @@
       "id": "air-quality",
       "featureCount": 7,
       "path": "/data/air-quality.geojson"
+    },
+    {
+      "id": "lighting",
+      "featureCount": 4976,
+      "path": "/data/lighting.geojson"
+    },
+    {
+      "id": "halal",
+      "featureCount": 393,
+      "path": "/data/halal.geojson"
+    },
+    {
+      "id": "metro-accessibility",
+      "featureCount": 41,
+      "path": "/data/metro-accessibility.geojson"
     }
   ]
 }
