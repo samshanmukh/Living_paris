@@ -14,6 +14,14 @@ import {
   resolveCenter,
   resolveRadius,
 } from "@/services/data/spatial-engine";
+import {
+  fetchLiveAirQuality,
+  type LiveAirContext,
+} from "@/services/persona/enrich-live-context";
+import {
+  applyPersonaToIntent,
+  resolvePersona,
+} from "@/services/persona/resolve-persona";
 import { resolveExperience } from "./modes";
 import { rankForExperience } from "./scoring";
 import { buildItinerary } from "./itinerary";
@@ -22,17 +30,29 @@ const DEFAULT_RECOMMENDATIONS = 12;
 const MAX_MARKERS = 40;
 
 /** Support layers appear as markers/context but never as itinerary stops. */
-const NON_DESTINATION_LAYERS: LayerType[] = ["metro", "bikes", "noise", "air-quality"];
+const NON_DESTINATION_LAYERS: LayerType[] = [
+  "metro",
+  "bikes",
+  "noise",
+  "air-quality",
+  "lighting",
+  "halal",
+  "metro-accessibility",
+];
 
 function layersForMode(
   modeId: ExperienceId,
   layerWeights: Partial<Record<LayerType, number>>,
-  override?: LayerType[]
+  override?: LayerType[],
+  personaOverlayLayers?: LayerType[]
 ): LayerType[] {
   const modePrimary = (Object.entries(layerWeights) as [LayerType, number][])
     .sort((a, b) => b[1] - a[1])
     .map(([layer]) => layer);
-  const context = CONTEXT_OVERLAY_BY_EXPERIENCE[modeId] ?? [];
+  const context = [
+    ...(CONTEXT_OVERLAY_BY_EXPERIENCE[modeId] ?? []),
+    ...(personaOverlayLayers ?? []),
+  ];
 
   if (override?.length) {
     const overlayOnly = override.every((layer) =>
@@ -66,6 +86,20 @@ async function loadContextMarkers(layers: LayerType[]): Promise<MapMarker[]> {
   }));
 }
 
+function enrichContextMarkersWithLiveAir(
+  markers: MapMarker[],
+  live: LiveAirContext
+): MapMarker[] {
+  const liveIndex = live.aqi;
+  if (liveIndex == null) return markers;
+
+  return markers.map((marker) =>
+    marker.layer === "air-quality"
+      ? { ...marker, airQualityIndex: liveIndex }
+      : marker
+  );
+}
+
 /** Center the camera on the itinerary rather than the raw query center. */
 function focusCenter(
   ranked: ScoredFeature[],
@@ -93,15 +127,32 @@ function focusCenter(
 export async function runExperience(intent: IntentQuery): Promise<ExperienceResult> {
   const start = performance.now();
 
-  const mode = resolveExperience(intent);
-  const layers = layersForMode(mode.id, mode.layerWeights, intent.layers);
-  const center = resolveCenter(intent);
-  const radiusMeters = resolveRadius(intent);
+  const personaPreset = resolvePersona(intent);
+  const resolvedIntent = personaPreset
+    ? applyPersonaToIntent(intent, personaPreset)
+    : intent;
+
+  const mode = resolveExperience(resolvedIntent);
+  const layers = layersForMode(
+    mode.id,
+    mode.layerWeights,
+    resolvedIntent.layers,
+    personaPreset?.overlayLayers
+  );
+  const center = resolveCenter(resolvedIntent);
+  const radiusMeters = resolveRadius(resolvedIntent);
 
   const collection = await loadLayers(layers);
   const within = filterWithinRadius(collection.features, center, radiusMeters, true);
-  const ranked = rankForExperience(within, mode, intent, center);
-  const contextMarkers = await loadContextMarkers(layers);
+  const ranked = rankForExperience(within, mode, resolvedIntent, center);
+  let contextMarkers = await loadContextMarkers(layers);
+
+  if (personaPreset?.id === "asthma") {
+    const liveAir = await fetchLiveAirQuality();
+    if (liveAir) {
+      contextMarkers = enrichContextMarkersWithLiveAir(contextMarkers, liveAir);
+    }
+  }
 
   const destinations = ranked.filter(
     (s) => !NON_DESTINATION_LAYERS.includes(s.feature.properties.layer)
@@ -110,11 +161,11 @@ export async function runExperience(intent: IntentQuery): Promise<ExperienceResu
     destinations,
     center,
     mode.defaultStops,
-    intent.timeBudget
+    resolvedIntent.timeBudget
   );
 
   const recommendations = ranked
-    .slice(0, intent.limit ?? DEFAULT_RECOMMENDATIONS)
+    .slice(0, resolvedIntent.limit ?? DEFAULT_RECOMMENDATIONS)
     .map((s) => ({
       id: s.feature.properties.id,
       name: s.feature.properties.name,
@@ -162,7 +213,7 @@ export async function runExperience(intent: IntentQuery): Promise<ExperienceResu
       emoji: mode.emoji,
       description: mode.description,
     },
-    intent,
+    intent: resolvedIntent,
     mapState,
     itinerary,
     recommendations,

@@ -16,6 +16,9 @@ export const CONTEXT_OVERLAY_LAYERS: LayerType[] = [
   "bikes",
   "noise",
   "air-quality",
+  "lighting",
+  "halal",
+  "metro-accessibility",
 ];
 
 export const CONTEXT_OVERLAY_BY_EXPERIENCE: Partial<
@@ -27,9 +30,9 @@ export const CONTEXT_OVERLAY_BY_EXPERIENCE: Partial<
   "family-day": ["air-quality"],
   "photo-walk": ["air-quality"],
   "local-explorer": ["bikes"],
-  "food-tour": ["bikes"],
+  "food-tour": ["bikes", "halal"],
   "rainy-day": ["noise"],
-  "nightlife": ["noise"],
+  "nightlife": ["noise", "lighting"],
   "museums-art": ["air-quality"],
 };
 
