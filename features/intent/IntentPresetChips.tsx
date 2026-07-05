@@ -1,11 +1,10 @@
 "use client";
 
-import type { DemoScenarioId } from "@/lib/demo-bundles";
 import type { PresetIntentId } from "@/lib/living-paris-intent";
 import PresetChipRow from "@/features/ui/components/PresetChipRow";
 import { toUiPresetChips } from "@/features/ui/adapters/living-paris";
 
-export type ScenarioChipId = PresetIntentId | DemoScenarioId;
+export type ScenarioChipId = PresetIntentId;
 
 export interface PresetChipOption {
   id: ScenarioChipId;

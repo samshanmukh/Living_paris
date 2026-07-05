@@ -18,6 +18,8 @@
 }
 
 :root {
+  --paper: #efe9df;
+  --accent: #d9a441;
   --cream: #f3ede2;
   --cream-soft: #faf6ee;
   --ink: #2b241c;
@@ -113,50 +115,92 @@ body {
   box-shadow: 0 12px 40px -14px rgba(94, 76, 56, 0.28);
 }
 
-.lp-drawer-accent {
-  transition:
-    box-shadow 0.55s ease,
-    border-color 0.55s ease;
+.glass {
+  background: rgba(255, 252, 246, 0.82);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 8px 32px -12px rgba(94, 76, 56, 0.22);
 }
 
-.lp-diorama-sun {
-  animation: lp-sun-pulse 4s ease-in-out infinite;
+.glass-strong {
+  background: rgba(255, 253, 248, 0.92);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 12px 40px -14px rgba(94, 76, 56, 0.28);
 }
 
-.lp-diorama-window {
-  animation: lp-window-flicker 3.5s ease-in-out infinite;
-}
-
-@keyframes lp-sun-pulse {
-  0%,
-  100% {
-    opacity: 0.92;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.04);
+@media (max-width: 768px) {
+  .glass,
+  .glass-strong {
+    backdrop-filter: none;
+    background: rgba(255, 252, 246, 0.94);
   }
 }
 
-@keyframes lp-window-flicker {
-  0%,
-  100% {
+@keyframes lp-pulse-ring {
+  0% {
+    transform: scale(0.85);
     opacity: 0.75;
   }
-  40% {
-    opacity: 0.95;
+  70% {
+    transform: scale(1.35);
+    opacity: 0;
   }
-  55% {
-    opacity: 0.7;
+  100% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+}
+
+.lp-rain-overlay {
+  background:
+    linear-gradient(180deg, rgba(91, 122, 153, 0.12), rgba(55, 65, 92, 0.18)),
+    repeating-linear-gradient(
+      115deg,
+      transparent,
+      transparent 8px,
+      rgba(255, 255, 255, 0.08) 8px,
+      rgba(255, 255, 255, 0.08) 9px
+    );
+  animation: lp-rain-fall 0.8s linear infinite;
+}
+
+.lp-snow-overlay {
+  background:
+    radial-gradient(circle at 20% 10%, rgba(255, 255, 255, 0.35), transparent 35%),
+    radial-gradient(circle at 80% 30%, rgba(255, 255, 255, 0.25), transparent 40%);
+  animation: lp-snow-drift 6s ease-in-out infinite alternate;
+}
+
+@keyframes lp-rain-fall {
+  from {
+    background-position: 0 0, 0 0;
+  }
+  to {
+    background-position: 0 0, 0 24px;
+  }
+}
+
+@keyframes lp-snow-drift {
+  from {
+    opacity: 0.55;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 0.85;
+    transform: translateX(4px);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .lp-diorama-sun,
-  .lp-diorama-window {
+  .lp-rain-overlay,
+  .lp-snow-overlay {
     animation: none;
   }
+}
+
+.lp-drawer-accent {
+  transition:
+    box-shadow 0.55s ease,
+    border-color 0.55s ease;
 }
 
 @keyframes lp-marker-in {
