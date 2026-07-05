@@ -8,16 +8,16 @@ import {
   useState,
   type CSSProperties,
 } from "react";
-import MapGL, { Marker, useControl, type MapRef } from "react-map-gl/mapbox";
+import MapGL, { useControl, type MapRef } from "react-map-gl/mapbox";
 import { LngLatBounds } from "mapbox-gl";
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import type { Layer } from "@deck.gl/core";
 import type { Feature, LineString } from "geojson";
 import { CONTEXT_OVERLAY_LAYERS } from "@/lib/map-layer-styles";
 import { isMobileViewport, prefersReducedMotion } from "@/lib/map-performance";
-import { cn } from "@/lib/utils";
 import type { LayerType, MapState } from "@/lib/types";
 import { buildDeckLayers } from "./build-deck-layers";
+import { LivingParisOverlay } from "./overlay";
 import { addToyBuildings, applyToyCityStyle } from "./toy-city-style";
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
@@ -104,7 +104,7 @@ export default function MapCanvas({
       hiddenLayers,
       routeAccentRgb,
       animate: animateDeck && !prefersReducedMotion(),
-    });
+    }).filter((layer) => layer.id !== "lp-route-glow" && layer.id !== "lp-route-core");
   }, [mapState, routeGeometry, pulse, hiddenLayers, routeAccentRgb, animateDeck]);
 
   const handleLoad = useCallback(() => {
@@ -171,30 +171,6 @@ export default function MapCanvas({
     }
   }, [mapState, mapLoaded]);
 
-  const stopOrder = useMemo(() => {
-    if (!mapState) return new Map<string, number>();
-    return new Map(
-      mapState.routeWaypoints.map((waypoint, index) => [
-        `${waypoint.lon},${waypoint.lat}`,
-        index + 1,
-      ])
-    );
-  }, [mapState]);
-
-  const domMarkers = useMemo(() => {
-    if (!mapState) return [];
-    const seen = new Set<string>();
-    return mapState.markers.filter((marker) => {
-      if (CONTEXT_OVERLAY_LAYERS.includes(marker.layer) || seen.has(marker.id)) {
-        return false;
-      }
-      seen.add(marker.id);
-      return true;
-    });
-  }, [mapState]);
-
-  const firstStop = mapState?.routeWaypoints[0];
-
   if (!MAPBOX_TOKEN) {
     return (
       <div className="absolute inset-0 z-0 grid place-items-center bg-[#efe9df] px-8 text-center">
@@ -233,52 +209,12 @@ export default function MapCanvas({
       >
         {deckLayers.length > 0 ? <DeckGLOverlay layers={deckLayers} /> : null}
 
-        {domMarkers.map((marker, index) => {
-          const order = marker.highlighted
-            ? stopOrder.get(`${marker.coords[0]},${marker.coords[1]}`)
-            : undefined;
-          return (
-            <Marker
-              key={marker.id}
-              longitude={marker.coords[0]}
-              latitude={marker.coords[1]}
-              anchor="center"
-            >
-              <button
-                type="button"
-                aria-label={marker.name}
-                onClick={() => onMarkerClick?.(marker.id)}
-                className={cn("lp-marker", marker.highlighted && "lp-marker-hero")}
-                data-layer={marker.layer}
-                style={{
-                  animationDelay: `${Math.min(index * 35, 800)}ms`,
-                  ...(marker.highlighted && routeAccentColor
-                    ? {
-                        background: routeAccentColor,
-                        boxShadow: `0 0 0 6px ${routeAccentColor}44`,
-                      }
-                    : {}),
-                }}
-              >
-                {order ?? ""}
-              </button>
-            </Marker>
-          );
-        })}
-
-        {firstStop && (
-          <Marker
-            longitude={firstStop.lon}
-            latitude={firstStop.lat}
-            anchor="bottom"
-            offset={[0, -34]}
-          >
-            <div className="lp-speech">
-              <span className="lp-speech-tag">Start here</span>
-              {firstStop.name}
-            </div>
-          </Marker>
-        )}
+        <LivingParisOverlay
+          mapState={mapState}
+          routeGeometry={routeGeometry}
+          routeAccentColor={routeAccentColor}
+          onMarkerClick={onMarkerClick}
+        />
       </MapGL>
     </div>
   );
