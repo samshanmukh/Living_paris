@@ -79,13 +79,14 @@ export function applyToyCityStyle(map: MapboxMap) {
 }
 
 /** Warm terracotta-roofed 3D buildings — the miniature diorama look. */
-export function addToyBuildings(map: MapboxMap) {
+export function addToyBuildings(map: MapboxMap, options?: { lite?: boolean }) {
   if (map.getLayer("lp-buildings")) return;
 
   const style = map.getStyle();
   const hasComposite = style?.sources && "composite" in style.sources;
   if (!hasComposite) return;
 
+  const lite = options?.lite ?? false;
   const firstSymbol = style.layers?.find((layer) => layer.type === "symbol")?.id;
 
   try {
@@ -95,7 +96,8 @@ export function addToyBuildings(map: MapboxMap) {
         type: "fill-extrusion",
         source: "composite",
         "source-layer": "building",
-        minzoom: 12.5,
+        minzoom: lite ? 14.5 : 13,
+        maxzoom: lite ? 16 : 18,
         filter: ["==", ["get", "extrude"], "true"],
         paint: {
           "fill-extrusion-color": [
@@ -111,10 +113,14 @@ export function addToyBuildings(map: MapboxMap) {
             90,
             "#c99277",
           ],
-          "fill-extrusion-height": ["*", 1.25, ["coalesce", ["get", "height"], 12]],
+          "fill-extrusion-height": [
+            "*",
+            lite ? 1 : 1.15,
+            ["coalesce", ["get", "height"], 12],
+          ],
           "fill-extrusion-base": ["coalesce", ["get", "min_height"], 0],
-          "fill-extrusion-opacity": 0.92,
-          "fill-extrusion-vertical-gradient": true,
+          "fill-extrusion-opacity": lite ? 0.72 : 0.88,
+          "fill-extrusion-vertical-gradient": !lite,
         },
       },
       firstSymbol

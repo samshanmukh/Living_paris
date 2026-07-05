@@ -72,6 +72,22 @@ body {
   animation: lp-marker-pulse 1.8s ease-in-out infinite;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .lp-marker,
+  .lp-marker-hero,
+  .lp-speech {
+    animation: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .lp-glass,
+  .lp-glass-strong {
+    backdrop-filter: none;
+    background: rgba(255, 252, 246, 0.94);
+  }
+}
+
 @keyframes lp-marker-pulse {
   0%,
   100% {

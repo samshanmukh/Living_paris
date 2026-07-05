@@ -14,6 +14,7 @@ import { MapboxOverlay } from "@deck.gl/mapbox";
 import type { Layer } from "@deck.gl/core";
 import type { Feature, LineString } from "geojson";
 import { CONTEXT_OVERLAY_LAYERS } from "@/lib/map-layer-styles";
+import { isMobileViewport, prefersReducedMotion } from "@/lib/map-performance";
 import { cn } from "@/lib/utils";
 import type { LayerType, MapState } from "@/lib/types";
 import { buildDeckLayers } from "./build-deck-layers";
@@ -21,6 +22,7 @@ import { addToyBuildings, applyToyCityStyle } from "./toy-city-style";
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
 const PARIS_CENTER = { longitude: 2.3522, latitude: 48.8566 };
+const PULSE_INTERVAL_MS = 200;
 
 interface MapCanvasProps {
   mapState: MapState | null;
@@ -28,6 +30,8 @@ interface MapCanvasProps {
   hiddenLayers?: Set<LayerType>;
   routeAccentColor?: string;
   onMarkerClick?: (id: string) => void;
+  /** Only enable when dev snapshot capture is active — preserveDrawingBuffer is costly. */
+  snapshotCapture?: boolean;
   onCaptureReady?: (capture: () => Promise<string | null>) => void;
 }
 
@@ -40,24 +44,45 @@ function DeckGLOverlay({ layers }: { layers: Layer[] }) {
   return null;
 }
 
+function routeNeedsPulse(
+  mapState: MapState | null,
+  routeGeometry: Feature<LineString> | null
+): boolean {
+  if (!mapState) return false;
+  if (routeGeometry?.geometry?.coordinates?.length) return true;
+  return mapState.markers.some(
+    (marker) =>
+      CONTEXT_OVERLAY_LAYERS.includes(marker.layer) &&
+      mapState.visibleLayers.includes(marker.layer)
+  );
+}
+
 export default function MapCanvas({
   mapState,
   routeGeometry,
   hiddenLayers,
   routeAccentColor,
   onMarkerClick,
+  snapshotCapture = false,
   onCaptureReady,
 }: MapCanvasProps) {
   const mapRef = useRef<MapRef>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [pulse, setPulse] = useState(0);
+  const [mobile] = useState(() => isMobileViewport());
+  const animateDeck = routeNeedsPulse(mapState, routeGeometry);
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
+    if (!animateDeck || prefersReducedMotion()) return;
+
+    const tick = () => {
+      if (document.hidden) return;
       setPulse((value) => (value + 1) % 120);
-    }, 70);
+    };
+
+    const timer = window.setInterval(tick, PULSE_INTERVAL_MS);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [animateDeck]);
 
   const routeAccentRgb = useMemo<[number, number, number] | undefined>(() => {
     if (!routeAccentColor) return undefined;
@@ -75,11 +100,12 @@ export default function MapCanvas({
     return buildDeckLayers({
       mapState,
       routeGeometry,
-      pulse,
+      pulse: animateDeck ? pulse : 0,
       hiddenLayers,
       routeAccentRgb,
+      animate: animateDeck && !prefersReducedMotion(),
     });
-  }, [mapState, routeGeometry, pulse, hiddenLayers, routeAccentRgb]);
+  }, [mapState, routeGeometry, pulse, hiddenLayers, routeAccentRgb, animateDeck]);
 
   const handleLoad = useCallback(() => {
     const map = mapRef.current?.getMap();
@@ -87,28 +113,34 @@ export default function MapCanvas({
 
     setMapLoaded(true);
     applyToyCityStyle(map);
-    addToyBuildings(map);
+    addToyBuildings(map, { lite: mobile });
 
-    map.easeTo({ bearing: 8, pitch: 55, duration: 14000, easing: (t) => t });
+    if (!prefersReducedMotion()) {
+      map.easeTo({
+        bearing: 8,
+        pitch: mobile ? 42 : 50,
+        duration: mobile ? 2500 : 4000,
+        easing: (t) => t,
+      });
+    }
 
-    // WebGL buffers clear after present — capture inside a render frame.
-    onCaptureReady?.(
-      () =>
-        new Promise<string | null>((resolve) => {
-          map.once("render", () => {
-            try {
-              resolve(map.getCanvas().toDataURL("image/jpeg", 0.82));
-            } catch {
-              resolve(null);
-            }
-          });
-          map.triggerRepaint();
-        })
-    );
-  }, [onCaptureReady]);
+    if (snapshotCapture) {
+      onCaptureReady?.(
+        () =>
+          new Promise<string | null>((resolve) => {
+            map.once("render", () => {
+              try {
+                resolve(map.getCanvas().toDataURL("image/jpeg", 0.82));
+              } catch {
+                resolve(null);
+              }
+            });
+            map.triggerRepaint();
+          })
+      );
+    }
+  }, [mobile, onCaptureReady, snapshotCapture]);
 
-  // Runs when a plan arrives and when the map finishes loading with a plan
-  // already present (dev-cache boot, frozen-snapshot switch).
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapState || !mapLoaded) return;
@@ -125,7 +157,7 @@ export default function MapCanvas({
       map.fitBounds(bounds, {
         padding: { top: 210, bottom: 330, left: 70, right: 70 },
         pitch: mapState.flyTo.pitch,
-        duration: 2200,
+        duration: prefersReducedMotion() ? 0 : 2200,
         essential: true,
       });
     } else {
@@ -133,7 +165,7 @@ export default function MapCanvas({
         center: mapState.flyTo.center,
         zoom: mapState.flyTo.zoom,
         pitch: mapState.flyTo.pitch,
-        duration: 2200,
+        duration: prefersReducedMotion() ? 0 : 2200,
         essential: true,
       });
     }
@@ -188,17 +220,18 @@ export default function MapCanvas({
         mapboxAccessToken={MAPBOX_TOKEN}
         initialViewState={{
           ...PARIS_CENTER,
-          zoom: 14.6,
-          pitch: 58,
+          zoom: mobile ? 14.2 : 14.6,
+          pitch: mobile ? 42 : 48,
           bearing: -18,
         }}
         mapStyle="mapbox://styles/mapbox/light-v11"
-        preserveDrawingBuffer
+        preserveDrawingBuffer={snapshotCapture}
+        antialias={!mobile}
         attributionControl={false}
         onLoad={handleLoad}
         style={{ width: "100%", height: "100%" }}
       >
-        <DeckGLOverlay layers={deckLayers} />
+        {deckLayers.length > 0 ? <DeckGLOverlay layers={deckLayers} /> : null}
 
         {domMarkers.map((marker, index) => {
           const order = marker.highlighted

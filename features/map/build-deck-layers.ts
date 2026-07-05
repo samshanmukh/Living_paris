@@ -16,6 +16,7 @@ interface BuildDeckLayersInput {
   pulse: number;
   hiddenLayers?: Set<LayerType>;
   routeAccentRgb?: [number, number, number];
+  animate?: boolean;
 }
 
 function isLayerVisible(
@@ -60,6 +61,7 @@ export function buildDeckLayers({
   pulse,
   hiddenLayers,
   routeAccentRgb,
+  animate = true,
 }: BuildDeckLayersInput): Layer[] {
   const layers: Layer[] = [];
   const visible = new Set(mapState.visibleLayers);
@@ -71,7 +73,7 @@ export function buildDeckLayers({
   const path = routePath(routeGeometry);
 
   if (path.length > 1) {
-    const pulseScale = 1 + Math.sin(pulse / 7) * 0.16;
+    const pulseScale = animate ? 1 + Math.sin(pulse / 7) * 0.16 : 1;
     layers.push(
       new PathLayer<{ path: [number, number][] }>({
         id: "lp-route-glow",
@@ -121,8 +123,8 @@ export function buildDeckLayers({
           data: noisePoints,
           getPosition: (marker) => marker.coords,
           getWeight: heatmapWeight,
-          radiusPixels: 110,
-          intensity: 1.6,
+          radiusPixels: 85,
+          intensity: 1.3,
           threshold: 0.04,
           colorRange: [
             [255, 255, 204, 0],
@@ -147,8 +149,8 @@ export function buildDeckLayers({
           data: aqPoints,
           getPosition: (marker) => marker.coords,
           getWeight: heatmapWeight,
-          radiusPixels: 120,
-          intensity: 1.4,
+          radiusPixels: 90,
+          intensity: 1.2,
           threshold: 0.03,
           colorRange: [
             [237, 248, 251, 0],
@@ -171,7 +173,11 @@ export function buildDeckLayers({
         data: contextMarkers,
         getPosition: (marker) => marker.coords,
         getRadius: (marker) =>
-          markerRadius(marker.layer, marker.highlighted, Math.sin(pulse / 7) * 0.16 + 1),
+          markerRadius(
+            marker.layer,
+            marker.highlighted,
+            animate ? Math.sin(pulse / 7) * 0.16 + 1 : 1
+          ),
         radiusUnits: "pixels",
         getFillColor: (marker) => layerAccent(marker.layer, mapState.theme),
         getLineColor: [255, 255, 255, 180],
