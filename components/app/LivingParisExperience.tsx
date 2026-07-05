@@ -9,6 +9,7 @@ import UiDevToolbar from "@/features/dev/UiDevToolbar";
 import IntentDrawer, { type ChatMessage } from "@/features/intent/IntentDrawer";
 import IntentMoodOverlay, { IntentHeader } from "@/features/intent/IntentMoodOverlay";
 import IntentResponseBubble from "@/features/intent/IntentResponseBubble";
+import DioramaStage from "@/features/diorama/DioramaStage";
 import MapLayerControls from "@/features/map/MapLayerControls";
 import MapSnapshotLayer from "@/features/map/MapSnapshotLayer";
 import { useSpeechSynthesis } from "@/features/voice/useSpeechSynthesis";
@@ -50,6 +51,8 @@ function LivingParisExperienceInner() {
     hiddenLayers,
     toggleLayer,
     devCache,
+    activeDemoBundle,
+    isDemoMode,
   } = useLivingParisIntent();
 
   const {
@@ -135,7 +138,7 @@ function LivingParisExperienceInner() {
       setMessages((prev) => [...prev, { id: nextId(), role: "user", text: label }]);
       setFocusedStopId(null);
       try {
-        await selectPreset(id);
+        await selectPreset(id as Parameters<typeof selectPreset>[0]);
       } catch (error) {
         pushErrorUnlessAborted(error);
       }
@@ -148,7 +151,16 @@ function LivingParisExperienceInner() {
 
   return (
     <main className="lp-dark relative h-dvh w-full overflow-hidden bg-[#efe9df]">
-      {mapFrozen && mapSnapshot ? (
+      {isDemoMode ? (
+        <DioramaStage
+          bundle={activeDemoBundle}
+          routeAccentColor={currentIntent.accentColor}
+          onMarkerClick={(id) => {
+            setFocusedStopId(id);
+            setExpandSignal((value) => value + 1);
+          }}
+        />
+      ) : mapFrozen && mapSnapshot ? (
         <MapSnapshotLayer
           src={mapSnapshot}
           accentColor={currentIntent.accentColor}
@@ -178,21 +190,29 @@ function LivingParisExperienceInner() {
       </div>
 
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col items-center gap-2 px-4 pt-[max(0.9rem,env(safe-area-inset-top))]">
-        <div className="pointer-events-auto flex w-full max-w-md items-center justify-between gap-2 sm:max-w-lg">
-          <div className="lp-glass flex flex-1 items-center rounded-full border border-[#e5dbc9] px-3 py-2">
-            <motion.span
-              className="mr-2 grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold text-white"
-              animate={{ backgroundColor: currentIntent.accentColor }}
-              transition={{ duration: 0.55, ease: "easeInOut" }}
-            >
-              P
-            </motion.span>
-            <span className="font-display text-[14px] font-semibold tracking-tight text-[#2b241c]">
-              Living Paris
-            </span>
+        {!isDemoMode && (
+          <div className="pointer-events-auto flex w-full max-w-md items-center justify-between gap-2 sm:max-w-lg">
+            <div className="lp-glass flex flex-1 items-center rounded-full border border-[#e5dbc9] px-3 py-2">
+              <motion.span
+                className="mr-2 grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold text-white"
+                animate={{ backgroundColor: currentIntent.accentColor }}
+                transition={{ duration: 0.55, ease: "easeInOut" }}
+              >
+                P
+              </motion.span>
+              <span className="font-display text-[14px] font-semibold tracking-tight text-[#2b241c]">
+                Living Paris
+              </span>
+            </div>
+            <LanguageSelector />
           </div>
-          <LanguageSelector />
-        </div>
+        )}
+
+        {isDemoMode && (
+          <div className="pointer-events-auto absolute right-4 top-[max(0.9rem,env(safe-area-inset-top))]">
+            <LanguageSelector />
+          </div>
+        )}
 
         {hasStarted && (
           <IntentHeader
@@ -202,7 +222,7 @@ function LivingParisExperienceInner() {
           />
         )}
 
-        {result?.mapState.visibleLayers && (
+        {result?.mapState.visibleLayers && !isDemoMode && (
           <MapLayerControls
             visibleLayers={result.mapState.visibleLayers}
             hiddenLayers={hiddenLayers}

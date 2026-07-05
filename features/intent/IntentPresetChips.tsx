@@ -1,21 +1,24 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
+import type { DemoScenarioId } from "@/lib/demo-bundles";
 import type { PresetIntentId } from "@/lib/living-paris-intent";
 import { chipVariants } from "@/lib/motion-presets";
 
-interface PresetChip {
-  id: PresetIntentId;
+export type ScenarioChipId = PresetIntentId | DemoScenarioId;
+
+export interface PresetChipOption {
+  id: ScenarioChipId;
   label: string;
   emoji: string;
   accentColor: string;
 }
 
 interface IntentPresetChipsProps {
-  presets: PresetChip[];
-  selectedId: PresetIntentId | null;
+  presets: PresetChipOption[];
+  selectedId: ScenarioChipId | null;
   disabled?: boolean;
-  onSelect: (id: PresetIntentId) => void;
+  onSelect: (id: ScenarioChipId) => void;
 }
 
 export default function IntentPresetChips({
