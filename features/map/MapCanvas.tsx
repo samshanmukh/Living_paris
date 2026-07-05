@@ -29,6 +29,11 @@ import { isMobileViewport, prefersReducedMotion } from "@/lib/map-performance";
 import { cn } from "@/lib/utils";
 import type { LayerType, MapState } from "@/lib/types";
 import { buildDeckLayers } from "./build-deck-layers";
+import {
+  applyStandardBasemap,
+  getStandardMapConfig,
+  MAPBOX_STANDARD_STYLE,
+} from "./standard-style";
 import { addToyBuildings, applyToyCityStyle, type StylableMap } from "./toy-city-style";
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
@@ -213,13 +218,12 @@ export default function MapCanvas({
     });
   }, [mapState, routeGeometry, pulse, hiddenLayers, routeAccentRgb, animateDeck]);
 
-  const handleLoad = useCallback(() => {
-    const map = mapRef.current?.getMap() as StylableMap | undefined;
+  const handleMapboxLoad = useCallback(() => {
+    const map = mapboxRef.current?.getMap() as MapboxMap | undefined;
     if (!map) return;
 
     setMapLoaded(true);
-    applyToyCityStyle(map);
-    addToyBuildings(map, { lite: mobile });
+    applyStandardBasemap(map, mapState?.theme);
 
     if (!prefersReducedMotion()) {
       map.easeTo({
@@ -234,18 +238,43 @@ export default function MapCanvas({
       onCaptureReady?.(
         () =>
           new Promise<string | null>((resolve) => {
-            (map as MapboxMap).once("render", () => {
+            map.once("render", () => {
               try {
-                resolve((map as MapboxMap).getCanvas().toDataURL("image/jpeg", 0.82));
+                resolve(map.getCanvas().toDataURL("image/jpeg", 0.82));
               } catch {
                 resolve(null);
               }
             });
-            (map as MapboxMap).triggerRepaint();
+            map.triggerRepaint();
           })
       );
     }
-  }, [mobile, onCaptureReady, snapshotCapture]);
+  }, [mapState?.theme, mobile, onCaptureReady, snapshotCapture]);
+
+  const handleMapLibreLoad = useCallback(() => {
+    const map = maplibreRef.current?.getMap() as StylableMap | undefined;
+    if (!map) return;
+
+    setMapLoaded(true);
+    applyToyCityStyle(map);
+    addToyBuildings(map, { lite: mobile });
+
+    if (!prefersReducedMotion()) {
+      map.easeTo({
+        bearing: 8,
+        pitch: mobile ? 42 : 50,
+        duration: mobile ? 2500 : 4000,
+        easing: (t) => t,
+      });
+    }
+  }, [mobile]);
+
+  /** Shift Standard style lighting when the experience theme changes. */
+  useEffect(() => {
+    if (useMapLibre || !mapLoaded) return;
+    const map = mapboxRef.current?.getMap() as MapboxMap | undefined;
+    if (map) applyStandardBasemap(map, mapState?.theme);
+  }, [mapLoaded, mapState?.theme, useMapLibre]);
 
   /** Gentle idle drift — Paris breathes before a plan arrives. */
   useEffect(() => {
@@ -337,7 +366,7 @@ export default function MapCanvas({
     onMarkerClick,
   };
 
-  const sharedView = {
+  const mapboxView = {
     initialViewState: {
       ...PARIS_CENTER,
       zoom: mobile ? 14.2 : 14.6,
@@ -347,7 +376,22 @@ export default function MapCanvas({
     preserveDrawingBuffer: snapshotCapture,
     antialias: !mobile,
     attributionControl: false as const,
-    onLoad: handleLoad,
+    onLoad: handleMapboxLoad,
+    style: { width: "100%", height: "100%" },
+    config: getStandardMapConfig(mapState?.theme),
+  };
+
+  const maplibreView = {
+    initialViewState: {
+      ...PARIS_CENTER,
+      zoom: mobile ? 14.2 : 14.6,
+      pitch: mobile ? 42 : 48,
+      bearing: -18,
+    },
+    preserveDrawingBuffer: snapshotCapture,
+    antialias: !mobile,
+    attributionControl: false as const,
+    onLoad: handleMapLibreLoad,
     style: { width: "100%", height: "100%" },
   };
 
@@ -361,7 +405,7 @@ export default function MapCanvas({
       }
     >
       {useMapLibre ? (
-        <MapLibreGL ref={maplibreRef} mapStyle={CARTO_STYLE} {...sharedView}>
+        <MapLibreGL ref={maplibreRef} mapStyle={CARTO_STYLE} {...maplibreView}>
           <MapMarkerLayer
             Marker={MapLibreMarker}
             DeckOverlay={DeckGLOverlayMapLibre}
@@ -372,8 +416,8 @@ export default function MapCanvas({
         <MapGL
           ref={mapboxRef}
           mapboxAccessToken={MAPBOX_TOKEN}
-          mapStyle="mapbox://styles/mapbox/light-v11"
-          {...sharedView}
+          mapStyle={MAPBOX_STANDARD_STYLE}
+          {...mapboxView}
         >
           <MapMarkerLayer
             Marker={MapboxMarker}
