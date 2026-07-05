@@ -6,10 +6,21 @@ import {
   useMemo,
   useRef,
   useState,
+  type ComponentType,
   type CSSProperties,
+  type ReactNode,
 } from "react";
-import MapGL, { Marker, useControl, type MapRef } from "react-map-gl/mapbox";
-import { LngLatBounds } from "mapbox-gl";
+import MapGL, {
+  Marker as MapboxMarker,
+  useControl as useMapboxControl,
+  type MapRef,
+} from "react-map-gl/mapbox";
+import MapLibreGL, {
+  Marker as MapLibreMarker,
+  useControl as useMapLibreControl,
+} from "react-map-gl/maplibre";
+import { type Map as MapboxMap } from "mapbox-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import type { Layer } from "@deck.gl/core";
 import type { Feature, LineString } from "geojson";
@@ -18,9 +29,15 @@ import { isMobileViewport, prefersReducedMotion } from "@/lib/map-performance";
 import { cn } from "@/lib/utils";
 import type { LayerType, MapState } from "@/lib/types";
 import { buildDeckLayers } from "./build-deck-layers";
-import { addToyBuildings, applyToyCityStyle } from "./toy-city-style";
+import {
+  applyStandardBasemap,
+  getStandardMapConfig,
+  MAPBOX_STANDARD_STYLE,
+} from "./standard-style";
+import { addToyBuildings, applyToyCityStyle, type StylableMap } from "./toy-city-style";
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+const CARTO_STYLE = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
 const PARIS_CENTER = { longitude: 2.3522, latitude: 48.8566 };
 const PULSE_INTERVAL_MS = 200;
 
@@ -36,12 +53,103 @@ interface MapCanvasProps {
 }
 
 /** Mounts the deck.gl canvas inside react-map-gl with zero conflict. */
-function DeckGLOverlay({ layers }: { layers: Layer[] }) {
-  const overlay = useControl<MapboxOverlay>(
+function DeckGLOverlayMapbox({ layers }: { layers: Layer[] }) {
+  const overlay = useMapboxControl<MapboxOverlay>(
     () => new MapboxOverlay({ interleaved: true, layers: [] })
   );
   overlay.setProps({ layers });
   return null;
+}
+
+function DeckGLOverlayMapLibre({ layers }: { layers: Layer[] }) {
+  const overlay = useMapLibreControl<MapboxOverlay>(
+    () => new MapboxOverlay({ interleaved: true, layers: [] })
+  );
+  overlay.setProps({ layers });
+  return null;
+}
+
+type MarkerProps = {
+  longitude: number;
+  latitude: number;
+  anchor?: "center" | "bottom" | "top" | "left" | "right";
+  offset?: [number, number];
+  children?: ReactNode;
+};
+
+type MarkerComponent = ComponentType<MarkerProps>;
+
+function MapMarkerLayer({
+  Marker,
+  DeckOverlay,
+  deckLayers,
+  domMarkers,
+  stopOrder,
+  firstStop,
+  routeAccentColor,
+  onMarkerClick,
+}: {
+  Marker: MarkerComponent;
+  DeckOverlay: typeof DeckGLOverlayMapbox;
+  deckLayers: Layer[];
+  domMarkers: NonNullable<MapState>["markers"];
+  stopOrder: Map<string, number>;
+  firstStop: MapState["routeWaypoints"][number] | undefined;
+  routeAccentColor?: string;
+  onMarkerClick?: (id: string) => void;
+}) {
+  return (
+    <>
+      {deckLayers.length > 0 ? <DeckOverlay layers={deckLayers} /> : null}
+
+      {domMarkers.map((marker, index) => {
+        const order = marker.highlighted
+          ? stopOrder.get(`${marker.coords[0]},${marker.coords[1]}`)
+          : undefined;
+        return (
+          <Marker
+            key={marker.id}
+            longitude={marker.coords[0]}
+            latitude={marker.coords[1]}
+            anchor="center"
+          >
+            <button
+              type="button"
+              aria-label={marker.name}
+              onClick={() => onMarkerClick?.(marker.id)}
+              className={cn("lp-marker", marker.highlighted && "lp-marker-hero")}
+              data-layer={marker.layer}
+              style={{
+                animationDelay: `${Math.min(index * 35, 800)}ms`,
+                ...(marker.highlighted && routeAccentColor
+                  ? {
+                      background: routeAccentColor,
+                      boxShadow: `0 0 0 6px ${routeAccentColor}44`,
+                    }
+                  : {}),
+              }}
+            >
+              {order ?? ""}
+            </button>
+          </Marker>
+        );
+      })}
+
+      {firstStop && (
+        <Marker
+          longitude={firstStop.lon}
+          latitude={firstStop.lat}
+          anchor="bottom"
+          offset={[0, -34]}
+        >
+          <div className="lp-speech">
+            <span className="lp-speech-tag">Start here</span>
+            {firstStop.name}
+          </div>
+        </Marker>
+      )}
+    </>
+  );
 }
 
 function routeNeedsPulse(
@@ -66,7 +174,10 @@ export default function MapCanvas({
   snapshotCapture = false,
   onCaptureReady,
 }: MapCanvasProps) {
-  const mapRef = useRef<MapRef>(null);
+  const useMapLibre = !MAPBOX_TOKEN;
+  const mapboxRef = useRef<MapRef>(null);
+  const maplibreRef = useRef<React.ComponentRef<typeof MapLibreGL>>(null);
+  const mapRef = useMapLibre ? maplibreRef : mapboxRef;
   const [mapLoaded, setMapLoaded] = useState(false);
   const [pulse, setPulse] = useState(0);
   const [mobile] = useState(() => isMobileViewport());
@@ -107,13 +218,12 @@ export default function MapCanvas({
     });
   }, [mapState, routeGeometry, pulse, hiddenLayers, routeAccentRgb, animateDeck]);
 
-  const handleLoad = useCallback(() => {
-    const map = mapRef.current?.getMap();
+  const handleMapboxLoad = useCallback(() => {
+    const map = mapboxRef.current?.getMap() as MapboxMap | undefined;
     if (!map) return;
 
     setMapLoaded(true);
-    applyToyCityStyle(map);
-    addToyBuildings(map, { lite: mobile });
+    applyStandardBasemap(map, mapState?.theme);
 
     if (!prefersReducedMotion()) {
       map.easeTo({
@@ -139,7 +249,55 @@ export default function MapCanvas({
           })
       );
     }
-  }, [mobile, onCaptureReady, snapshotCapture]);
+  }, [mapState?.theme, mobile, onCaptureReady, snapshotCapture]);
+
+  const handleMapLibreLoad = useCallback(() => {
+    const map = maplibreRef.current?.getMap() as StylableMap | undefined;
+    if (!map) return;
+
+    setMapLoaded(true);
+    applyToyCityStyle(map);
+    addToyBuildings(map, { lite: mobile });
+
+    if (!prefersReducedMotion()) {
+      map.easeTo({
+        bearing: 8,
+        pitch: mobile ? 42 : 50,
+        duration: mobile ? 2500 : 4000,
+        easing: (t) => t,
+      });
+    }
+  }, [mobile]);
+
+  /** Shift Standard style lighting when the experience theme changes. */
+  useEffect(() => {
+    if (useMapLibre || !mapLoaded) return;
+    const map = mapboxRef.current?.getMap() as MapboxMap | undefined;
+    if (map) applyStandardBasemap(map, mapState?.theme);
+  }, [mapLoaded, mapState?.theme, useMapLibre]);
+
+  /** Gentle idle drift — Paris breathes before a plan arrives. */
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map || !mapLoaded || mapState || prefersReducedMotion()) return;
+
+    let frame = 0;
+    const start = performance.now();
+
+    const tick = () => {
+      if (document.hidden) {
+        frame = requestAnimationFrame(tick);
+        return;
+      }
+      const elapsed = (performance.now() - start) / 1000;
+      map.setBearing(-18 + Math.sin(elapsed * 0.12) * 5);
+      map.setPitch((mobile ? 42 : 48) + Math.sin(elapsed * 0.09) * 2.5);
+      frame = requestAnimationFrame(tick);
+    };
+
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [mapLoaded, mapState, mobile]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -150,16 +308,20 @@ export default function MapCanvas({
       .map((marker) => marker.coords);
 
     if (heroCoords.length >= 2) {
-      const bounds = heroCoords.reduce(
-        (bound, coord) => bound.extend(coord),
-        new LngLatBounds(heroCoords[0], heroCoords[0])
+      const lngs = heroCoords.map((coord) => coord[0]);
+      const lats = heroCoords.map((coord) => coord[1]);
+      map.fitBounds(
+        [
+          [Math.min(...lngs), Math.min(...lats)],
+          [Math.max(...lngs), Math.max(...lats)],
+        ],
+        {
+          padding: { top: 210, bottom: 330, left: 70, right: 70 },
+          pitch: mapState.flyTo.pitch,
+          duration: prefersReducedMotion() ? 0 : 2200,
+          essential: true,
+        }
       );
-      map.fitBounds(bounds, {
-        padding: { top: 210, bottom: 330, left: 70, right: 70 },
-        pitch: mapState.flyTo.pitch,
-        duration: prefersReducedMotion() ? 0 : 2200,
-        essential: true,
-      });
     } else {
       map.flyTo({
         center: mapState.flyTo.center,
@@ -195,16 +357,43 @@ export default function MapCanvas({
 
   const firstStop = mapState?.routeWaypoints[0];
 
-  if (!MAPBOX_TOKEN) {
-    return (
-      <div className="absolute inset-0 z-0 grid place-items-center bg-[#efe9df] px-8 text-center">
-        <p className="text-sm text-[#8a7d6b]">
-          Set <code className="font-semibold">NEXT_PUBLIC_MAPBOX_TOKEN</code> in{" "}
-          <code className="font-semibold">.env.local</code> to load the map.
-        </p>
-      </div>
-    );
-  }
+  const markerLayerProps = {
+    deckLayers,
+    domMarkers,
+    stopOrder,
+    firstStop,
+    routeAccentColor,
+    onMarkerClick,
+  };
+
+  const mapboxView = {
+    initialViewState: {
+      ...PARIS_CENTER,
+      zoom: mobile ? 14.2 : 14.6,
+      pitch: mobile ? 42 : 48,
+      bearing: -18,
+    },
+    preserveDrawingBuffer: snapshotCapture,
+    antialias: !mobile,
+    attributionControl: false as const,
+    onLoad: handleMapboxLoad,
+    style: { width: "100%", height: "100%" },
+    config: getStandardMapConfig(mapState?.theme),
+  };
+
+  const maplibreView = {
+    initialViewState: {
+      ...PARIS_CENTER,
+      zoom: mobile ? 14.2 : 14.6,
+      pitch: mobile ? 42 : 48,
+      bearing: -18,
+    },
+    preserveDrawingBuffer: snapshotCapture,
+    antialias: !mobile,
+    attributionControl: false as const,
+    onLoad: handleMapLibreLoad,
+    style: { width: "100%", height: "100%" },
+  };
 
   return (
     <div
@@ -215,71 +404,28 @@ export default function MapCanvas({
           : undefined
       }
     >
-      <MapGL
-        ref={mapRef}
-        mapboxAccessToken={MAPBOX_TOKEN}
-        initialViewState={{
-          ...PARIS_CENTER,
-          zoom: mobile ? 14.2 : 14.6,
-          pitch: mobile ? 42 : 48,
-          bearing: -18,
-        }}
-        mapStyle="mapbox://styles/mapbox/light-v11"
-        preserveDrawingBuffer={snapshotCapture}
-        antialias={!mobile}
-        attributionControl={false}
-        onLoad={handleLoad}
-        style={{ width: "100%", height: "100%" }}
-      >
-        {deckLayers.length > 0 ? <DeckGLOverlay layers={deckLayers} /> : null}
-
-        {domMarkers.map((marker, index) => {
-          const order = marker.highlighted
-            ? stopOrder.get(`${marker.coords[0]},${marker.coords[1]}`)
-            : undefined;
-          return (
-            <Marker
-              key={marker.id}
-              longitude={marker.coords[0]}
-              latitude={marker.coords[1]}
-              anchor="center"
-            >
-              <button
-                type="button"
-                aria-label={marker.name}
-                onClick={() => onMarkerClick?.(marker.id)}
-                className={cn("lp-marker", marker.highlighted && "lp-marker-hero")}
-                data-layer={marker.layer}
-                style={{
-                  animationDelay: `${Math.min(index * 35, 800)}ms`,
-                  ...(marker.highlighted && routeAccentColor
-                    ? {
-                        background: routeAccentColor,
-                        boxShadow: `0 0 0 6px ${routeAccentColor}44`,
-                      }
-                    : {}),
-                }}
-              >
-                {order ?? ""}
-              </button>
-            </Marker>
-          );
-        })}
-
-        {firstStop && (
-          <Marker
-            longitude={firstStop.lon}
-            latitude={firstStop.lat}
-            anchor="bottom"
-            offset={[0, -34]}
-          >
-            <div className="lp-speech">
-              <span className="lp-speech-tag">Start here</span>
-              {firstStop.name}
-            </div>
-          </Marker>
-        )}
-      </MapGL>
+      {useMapLibre ? (
+        <MapLibreGL ref={maplibreRef} mapStyle={CARTO_STYLE} {...maplibreView}>
+          <MapMarkerLayer
+            Marker={MapLibreMarker}
+            DeckOverlay={DeckGLOverlayMapLibre}
+            {...markerLayerProps}
+          />
+        </MapLibreGL>
+      ) : (
+        <MapGL
+          ref={mapboxRef}
+          mapboxAccessToken={MAPBOX_TOKEN}
+          mapStyle={MAPBOX_STANDARD_STYLE}
+          {...mapboxView}
+        >
+          <MapMarkerLayer
+            Marker={MapboxMarker}
+            DeckOverlay={DeckGLOverlayMapbox}
+            {...markerLayerProps}
+          />
+        </MapGL>
+      )}
     </div>
   );
 }

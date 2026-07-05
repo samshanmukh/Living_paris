@@ -1,7 +1,7 @@
 "use client";
 
 import { isUiDevCacheEnabled } from "@/lib/dev/ui-dev-cache";
-import { isDemoMode } from "@/lib/demo-mode";
+import { isDemoMode, isSandboxRoute } from "@/lib/demo-mode";
 import type { DemoScenarioId } from "@/lib/demo-bundles";
 import type { PresetIntentId } from "@/lib/living-paris-intent";
 import {
@@ -14,7 +14,7 @@ import {
 export function useLivingParisIntent() {
   const store = useLivingParisStore();
   const devCacheEnabled = isUiDevCacheEnabled();
-  const demoMode = isDemoMode();
+  const demoMode = isDemoMode() && !isSandboxRoute();
 
   return {
     currentIntent: store.currentIntent,
