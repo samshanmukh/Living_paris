@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { synthesizeSpeech } from "@/services/ai/openrouter-tts";
 
+export const maxDuration = 60;
+
 const bodySchema = z.object({
   text: z.string().min(1).max(15000),
 });

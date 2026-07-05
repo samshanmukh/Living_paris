@@ -3,6 +3,8 @@ import { intentSchema } from "@/lib/intent-schema";
 import { runExperience } from "@/services/experience/engine";
 import { EXPERIENCE_LIST } from "@/services/experience/modes";
 
+export const maxDuration = 30;
+
 export async function POST(request: NextRequest) {
   let body: unknown;
 
