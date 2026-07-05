@@ -125,12 +125,13 @@ function LivingParisExperienceInner() {
         }}
       />
 
-      <AnimatePresence>
-        <IntentMoodOverlay intent={currentIntent} />
-      </AnimatePresence>
-
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.04),transparent_45%)]" />
-      <div className="pointer-events-none absolute inset-0 shadow-[inset_0_0_140px_50px_rgba(0,0,0,0.55)]" />
+      <div className="pointer-events-none absolute inset-0 z-[1]">
+        <AnimatePresence>
+          <IntentMoodOverlay intent={currentIntent} />
+        </AnimatePresence>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.04),transparent_45%)]" />
+        <div className="absolute inset-0 shadow-[inset_0_0_140px_50px_rgba(0,0,0,0.35)]" />
+      </div>
 
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col items-center gap-2 px-4 pt-[max(0.9rem,env(safe-area-inset-top))]">
         <div className="pointer-events-auto flex w-full max-w-md items-center justify-between gap-2 sm:max-w-lg">

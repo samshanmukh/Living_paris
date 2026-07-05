@@ -79,8 +79,10 @@ export default function MapCanvas({
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
+    const container = containerRef.current;
+
     const map = new maplibregl.Map({
-      container: containerRef.current,
+      container,
       style: BASEMAP_STYLE,
       center: PARIS_CENTER,
       zoom: 12.5,
@@ -93,13 +95,28 @@ export default function MapCanvas({
     overlayRef.current = overlay;
     map.addControl(overlay as unknown as maplibregl.IControl);
 
+    const resize = () => {
+      if (mapRef.current) map.resize();
+    };
+
     map.on("load", () => {
       loadedRef.current = true;
       addBuildingExtrusions(map);
+      resize();
     });
+
+    const resizeObserver =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(() => resize())
+        : null;
+    resizeObserver?.observe(container);
+
+    window.addEventListener("resize", resize);
 
     mapRef.current = map;
     return () => {
+      window.removeEventListener("resize", resize);
+      resizeObserver?.disconnect();
       markersRef.current.forEach((marker) => marker.remove());
       overlay.finalize();
       map.remove();
@@ -204,13 +221,14 @@ export default function MapCanvas({
 
   return (
     <div
-      ref={containerRef}
-      className="absolute inset-0"
+      className="absolute inset-0 z-0"
       style={
         routeAccentColor
           ? ({ ["--lp-accent"]: routeAccentColor } as CSSProperties)
           : undefined
       }
-    />
+    >
+      <div ref={containerRef} className="h-full w-full" />
+    </div>
   );
 }
