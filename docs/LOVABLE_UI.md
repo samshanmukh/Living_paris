@@ -5,11 +5,15 @@ Living Paris UI is split into a **presentational layer** (`features/ui/`) and th
 ## Quick preview
 
 ```bash
-npm run dev
-# open http://localhost:3000/ui-sandbox
+npm run dev -- -p 9000
+# open http://localhost:9000/ui-sandbox
 ```
 
-The sandbox renders the full conversational shell with mock data — no Mapbox, no `/api/chat`.
+**`/ui-sandbox`** is the full Living Paris app — live map inside the diorama-style floating platform, real `/api/chat` + Paris Open Data, voice, and the extracted UI layer. It always uses the live pipeline (even if `NEXT_PUBLIC_DEMO_MODE=true`).
+
+Without a Mapbox token, the map falls back to a free CARTO basemap with the same warm toy-city styling.
+
+Static fixture-only preview for Lovable copy/paste: `features/ui/demo/fixtures.tsx`.
 
 ## What to copy into Lovable
 

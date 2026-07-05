@@ -9,7 +9,9 @@ import {
   type CSSProperties,
 } from "react";
 import MapGL, { Marker, useControl, type MapRef } from "react-map-gl/mapbox";
-import { LngLatBounds } from "mapbox-gl";
+import MapLibreGL from "react-map-gl/maplibre";
+import { type Map as MapboxMap } from "mapbox-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import type { Layer } from "@deck.gl/core";
 import type { Feature, LineString } from "geojson";
@@ -18,9 +20,10 @@ import { isMobileViewport, prefersReducedMotion } from "@/lib/map-performance";
 import { cn } from "@/lib/utils";
 import type { LayerType, MapState } from "@/lib/types";
 import { buildDeckLayers } from "./build-deck-layers";
-import { addToyBuildings, applyToyCityStyle } from "./toy-city-style";
+import { addToyBuildings, applyToyCityStyle, type StylableMap } from "./toy-city-style";
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+const CARTO_STYLE = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
 const PARIS_CENTER = { longitude: 2.3522, latitude: 48.8566 };
 const PULSE_INTERVAL_MS = 200;
 
@@ -66,7 +69,10 @@ export default function MapCanvas({
   snapshotCapture = false,
   onCaptureReady,
 }: MapCanvasProps) {
-  const mapRef = useRef<MapRef>(null);
+  const useMapLibre = !MAPBOX_TOKEN;
+  const mapboxRef = useRef<MapRef>(null);
+  const maplibreRef = useRef<React.ComponentRef<typeof MapLibreGL>>(null);
+  const mapRef = useMapLibre ? maplibreRef : mapboxRef;
   const [mapLoaded, setMapLoaded] = useState(false);
   const [pulse, setPulse] = useState(0);
   const [mobile] = useState(() => isMobileViewport());
@@ -108,7 +114,7 @@ export default function MapCanvas({
   }, [mapState, routeGeometry, pulse, hiddenLayers, routeAccentRgb, animateDeck]);
 
   const handleLoad = useCallback(() => {
-    const map = mapRef.current?.getMap();
+    const map = mapRef.current?.getMap() as StylableMap | undefined;
     if (!map) return;
 
     setMapLoaded(true);
@@ -128,18 +134,41 @@ export default function MapCanvas({
       onCaptureReady?.(
         () =>
           new Promise<string | null>((resolve) => {
-            map.once("render", () => {
+            (map as MapboxMap).once("render", () => {
               try {
-                resolve(map.getCanvas().toDataURL("image/jpeg", 0.82));
+                resolve((map as MapboxMap).getCanvas().toDataURL("image/jpeg", 0.82));
               } catch {
                 resolve(null);
               }
             });
-            map.triggerRepaint();
+            (map as MapboxMap).triggerRepaint();
           })
       );
     }
   }, [mobile, onCaptureReady, snapshotCapture]);
+
+  /** Gentle idle drift — Paris breathes before a plan arrives. */
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map || !mapLoaded || mapState || prefersReducedMotion()) return;
+
+    let frame = 0;
+    const start = performance.now();
+
+    const tick = () => {
+      if (document.hidden) {
+        frame = requestAnimationFrame(tick);
+        return;
+      }
+      const elapsed = (performance.now() - start) / 1000;
+      map.setBearing(-18 + Math.sin(elapsed * 0.12) * 5);
+      map.setPitch((mobile ? 42 : 48) + Math.sin(elapsed * 0.09) * 2.5);
+      frame = requestAnimationFrame(tick);
+    };
+
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [mapLoaded, mapState, mobile]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -150,16 +179,20 @@ export default function MapCanvas({
       .map((marker) => marker.coords);
 
     if (heroCoords.length >= 2) {
-      const bounds = heroCoords.reduce(
-        (bound, coord) => bound.extend(coord),
-        new LngLatBounds(heroCoords[0], heroCoords[0])
+      const lngs = heroCoords.map((coord) => coord[0]);
+      const lats = heroCoords.map((coord) => coord[1]);
+      map.fitBounds(
+        [
+          [Math.min(...lngs), Math.min(...lats)],
+          [Math.max(...lngs), Math.max(...lats)],
+        ],
+        {
+          padding: { top: 210, bottom: 330, left: 70, right: 70 },
+          pitch: mapState.flyTo.pitch,
+          duration: prefersReducedMotion() ? 0 : 2200,
+          essential: true,
+        }
       );
-      map.fitBounds(bounds, {
-        padding: { top: 210, bottom: 330, left: 70, right: 70 },
-        pitch: mapState.flyTo.pitch,
-        duration: prefersReducedMotion() ? 0 : 2200,
-        essential: true,
-      });
     } else {
       map.flyTo({
         center: mapState.flyTo.center,
@@ -195,16 +228,72 @@ export default function MapCanvas({
 
   const firstStop = mapState?.routeWaypoints[0];
 
-  if (!MAPBOX_TOKEN) {
-    return (
-      <div className="absolute inset-0 z-0 grid place-items-center bg-[#efe9df] px-8 text-center">
-        <p className="text-sm text-[#8a7d6b]">
-          Set <code className="font-semibold">NEXT_PUBLIC_MAPBOX_TOKEN</code> in{" "}
-          <code className="font-semibold">.env.local</code> to load the map.
-        </p>
-      </div>
-    );
-  }
+  const mapOverlay = (
+    <>
+      {deckLayers.length > 0 ? <DeckGLOverlay layers={deckLayers} /> : null}
+
+      {domMarkers.map((marker, index) => {
+        const order = marker.highlighted
+          ? stopOrder.get(`${marker.coords[0]},${marker.coords[1]}`)
+          : undefined;
+        return (
+          <Marker
+            key={marker.id}
+            longitude={marker.coords[0]}
+            latitude={marker.coords[1]}
+            anchor="center"
+          >
+            <button
+              type="button"
+              aria-label={marker.name}
+              onClick={() => onMarkerClick?.(marker.id)}
+              className={cn("lp-marker", marker.highlighted && "lp-marker-hero")}
+              data-layer={marker.layer}
+              style={{
+                animationDelay: `${Math.min(index * 35, 800)}ms`,
+                ...(marker.highlighted && routeAccentColor
+                  ? {
+                      background: routeAccentColor,
+                      boxShadow: `0 0 0 6px ${routeAccentColor}44`,
+                    }
+                  : {}),
+              }}
+            >
+              {order ?? ""}
+            </button>
+          </Marker>
+        );
+      })}
+
+      {firstStop && (
+        <Marker
+          longitude={firstStop.lon}
+          latitude={firstStop.lat}
+          anchor="bottom"
+          offset={[0, -34]}
+        >
+          <div className="lp-speech">
+            <span className="lp-speech-tag">Start here</span>
+            {firstStop.name}
+          </div>
+        </Marker>
+      )}
+    </>
+  );
+
+  const sharedView = {
+    initialViewState: {
+      ...PARIS_CENTER,
+      zoom: mobile ? 14.2 : 14.6,
+      pitch: mobile ? 42 : 48,
+      bearing: -18,
+    },
+    preserveDrawingBuffer: snapshotCapture,
+    antialias: !mobile,
+    attributionControl: false as const,
+    onLoad: handleLoad,
+    style: { width: "100%", height: "100%" },
+  };
 
   return (
     <div
@@ -215,71 +304,20 @@ export default function MapCanvas({
           : undefined
       }
     >
-      <MapGL
-        ref={mapRef}
-        mapboxAccessToken={MAPBOX_TOKEN}
-        initialViewState={{
-          ...PARIS_CENTER,
-          zoom: mobile ? 14.2 : 14.6,
-          pitch: mobile ? 42 : 48,
-          bearing: -18,
-        }}
-        mapStyle="mapbox://styles/mapbox/light-v11"
-        preserveDrawingBuffer={snapshotCapture}
-        antialias={!mobile}
-        attributionControl={false}
-        onLoad={handleLoad}
-        style={{ width: "100%", height: "100%" }}
-      >
-        {deckLayers.length > 0 ? <DeckGLOverlay layers={deckLayers} /> : null}
-
-        {domMarkers.map((marker, index) => {
-          const order = marker.highlighted
-            ? stopOrder.get(`${marker.coords[0]},${marker.coords[1]}`)
-            : undefined;
-          return (
-            <Marker
-              key={marker.id}
-              longitude={marker.coords[0]}
-              latitude={marker.coords[1]}
-              anchor="center"
-            >
-              <button
-                type="button"
-                aria-label={marker.name}
-                onClick={() => onMarkerClick?.(marker.id)}
-                className={cn("lp-marker", marker.highlighted && "lp-marker-hero")}
-                data-layer={marker.layer}
-                style={{
-                  animationDelay: `${Math.min(index * 35, 800)}ms`,
-                  ...(marker.highlighted && routeAccentColor
-                    ? {
-                        background: routeAccentColor,
-                        boxShadow: `0 0 0 6px ${routeAccentColor}44`,
-                      }
-                    : {}),
-                }}
-              >
-                {order ?? ""}
-              </button>
-            </Marker>
-          );
-        })}
-
-        {firstStop && (
-          <Marker
-            longitude={firstStop.lon}
-            latitude={firstStop.lat}
-            anchor="bottom"
-            offset={[0, -34]}
-          >
-            <div className="lp-speech">
-              <span className="lp-speech-tag">Start here</span>
-              {firstStop.name}
-            </div>
-          </Marker>
-        )}
-      </MapGL>
+      {useMapLibre ? (
+        <MapLibreGL ref={maplibreRef} mapStyle={CARTO_STYLE} {...sharedView}>
+          {mapOverlay}
+        </MapLibreGL>
+      ) : (
+        <MapGL
+          ref={mapboxRef}
+          mapboxAccessToken={MAPBOX_TOKEN}
+          mapStyle="mapbox://styles/mapbox/light-v11"
+          {...sharedView}
+        >
+          {mapOverlay}
+        </MapGL>
+      )}
     </div>
   );
 }

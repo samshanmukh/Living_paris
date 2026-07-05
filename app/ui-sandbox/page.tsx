@@ -1,5 +1,5 @@
-import { LivingParisUiDemo } from "@/features/ui";
+import { LivingParisExperience } from "@/components/app/LivingParisExperience";
 
 export default function UiSandboxPage() {
-  return <LivingParisUiDemo />;
+  return <LivingParisExperience variant="sandbox" />;
 }

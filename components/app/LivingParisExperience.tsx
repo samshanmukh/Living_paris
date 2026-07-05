@@ -11,6 +11,7 @@ import IntentDrawer, { type ChatMessage } from "@/features/intent/IntentDrawer";
 import IntentMoodOverlay, { IntentHeader } from "@/features/intent/IntentMoodOverlay";
 import IntentResponseBubble from "@/features/intent/IntentResponseBubble";
 import DioramaStage from "@/features/diorama/DioramaStage";
+import MapStageFrame from "@/features/map/MapStageFrame";
 import MapLayerControls from "@/features/map/MapLayerControls";
 import MapSnapshotLayer from "@/features/map/MapSnapshotLayer";
 import { useSpeechSynthesis } from "@/features/voice/useSpeechSynthesis";
@@ -28,15 +29,24 @@ const MapCanvas = dynamic(() => import("@/features/map/MapCanvas"), {
 let messageId = 0;
 const nextId = () => `m${++messageId}`;
 
-export function LivingParisExperience() {
+export function LivingParisExperience({
+  variant = "default",
+}: {
+  variant?: "default" | "sandbox";
+} = {}) {
   return (
     <LanguageProvider>
-      <LivingParisExperienceInner />
+      <LivingParisExperienceInner variant={variant} />
     </LanguageProvider>
   );
 }
 
-function LivingParisExperienceInner() {
+function LivingParisExperienceInner({
+  variant,
+}: {
+  variant: "default" | "sandbox";
+}) {
+  const framed = variant === "sandbox";
   const { speak } = useSpeechSynthesis("en-US");
   const {
     currentIntent,
@@ -150,44 +160,55 @@ function LivingParisExperienceInner() {
   const hasStarted =
     selectedPresetId != null || messages.length > 0 || currentIntent.id !== "idle";
 
+  const mapIdle = currentIntent.id === "idle" && !result;
+
+  const mapContent = isDemoMode ? (
+    <DioramaStage
+      bundle={activeDemoBundle}
+      routeAccentColor={currentIntent.accentColor}
+      onMarkerClick={(id) => {
+        setFocusedStopId(id);
+        setExpandSignal((value) => value + 1);
+      }}
+    />
+  ) : mapFrozen && mapSnapshot ? (
+    <MapSnapshotLayer src={mapSnapshot} accentColor={currentIntent.accentColor} />
+  ) : (
+    <MapCanvas
+      mapState={result?.mapState ?? null}
+      routeGeometry={routeGeometry}
+      hiddenLayers={hiddenLayers}
+      routeAccentColor={currentIntent.accentColor}
+      snapshotCapture={devCacheEnabled && useLiveMap}
+      onCaptureReady={handleCaptureReady}
+      onMarkerClick={(id) => {
+        setFocusedStopId(id);
+        setExpandSignal((value) => value + 1);
+      }}
+    />
+  );
+
   return (
     <main className="lp-dark relative h-dvh w-full overflow-hidden bg-[#efe9df]">
-      {isDemoMode ? (
-        <DioramaStage
-          bundle={activeDemoBundle}
-          routeAccentColor={currentIntent.accentColor}
-          onMarkerClick={(id) => {
-            setFocusedStopId(id);
-            setExpandSignal((value) => value + 1);
-          }}
-        />
-      ) : mapFrozen && mapSnapshot ? (
-        <MapSnapshotLayer
-          src={mapSnapshot}
-          accentColor={currentIntent.accentColor}
-        />
+      {framed ? (
+        <MapStageFrame accentColor={currentIntent.accentColor} idle={mapIdle}>
+          {mapContent}
+        </MapStageFrame>
       ) : (
-        <MapCanvas
-          mapState={result?.mapState ?? null}
-          routeGeometry={routeGeometry}
-          hiddenLayers={hiddenLayers}
-          routeAccentColor={currentIntent.accentColor}
-          snapshotCapture={devCacheEnabled && useLiveMap}
-          onCaptureReady={handleCaptureReady}
-          onMarkerClick={(id) => {
-            setFocusedStopId(id);
-            setExpandSignal((value) => value + 1);
-          }}
-        />
+        mapContent
       )}
 
       <div className="pointer-events-none absolute inset-0 z-[1]">
         <AnimatePresence>
           <IntentMoodOverlay intent={currentIntent} />
         </AnimatePresence>
-        <div className="absolute inset-0 bg-[linear-gradient(165deg,rgba(255,193,120,0.16),transparent_38%,rgba(255,170,90,0.05)_70%,rgba(94,60,30,0.10))]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_10%,rgba(255,250,240,0.2),transparent_55%)]" />
-        <div className="absolute inset-0 shadow-[inset_0_0_120px_30px_rgba(94,76,56,0.16)]" />
+        {!framed && (
+          <>
+            <div className="absolute inset-0 bg-[linear-gradient(165deg,rgba(255,193,120,0.16),transparent_38%,rgba(255,170,90,0.05)_70%,rgba(94,60,30,0.10))]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_10%,rgba(255,250,240,0.2),transparent_55%)]" />
+            <div className="absolute inset-0 shadow-[inset_0_0_120px_30px_rgba(94,76,56,0.16)]" />
+          </>
+        )}
       </div>
 
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col items-center gap-2 px-4 pt-[max(0.9rem,env(safe-area-inset-top))]">
@@ -195,6 +216,11 @@ function LivingParisExperienceInner() {
           <div className="pointer-events-auto flex w-full max-w-md items-center justify-between gap-2 sm:max-w-lg">
             <BrandPill accentColor={currentIntent.accentColor} />
             <LanguageSelector />
+            {framed && (
+              <span className="shrink-0 rounded-full border border-[#e5dbc9] bg-[rgba(255,252,246,0.9)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8a7d6b]">
+                Sandbox
+              </span>
+            )}
           </div>
         )}
 
@@ -241,7 +267,7 @@ function LivingParisExperienceInner() {
         onSelectPreset={(id) => void handlePreset(id)}
       />
 
-      {devCacheEnabled && (
+      {devCacheEnabled && !framed && (
         <UiDevToolbar
           savedAt={cacheSavedAt}
           frozen={mapFrozen}

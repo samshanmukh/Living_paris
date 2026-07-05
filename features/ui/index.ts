@@ -45,4 +45,3 @@ export { default as ResponseBubble } from "@/features/ui/components/ResponseBubb
 export { default as VoiceListeningOverlay } from "@/features/ui/components/VoiceListeningOverlay";
 
 export { uiDemoFixtures } from "@/features/ui/demo/fixtures";
-export { default as LivingParisUiDemo } from "@/features/ui/demo/LivingParisUiDemo";

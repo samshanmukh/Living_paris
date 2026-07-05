@@ -30,7 +30,7 @@ import {
   type DemoBundle,
   type DemoScenarioId,
 } from "@/lib/demo-bundles";
-import { isDemoMode } from "@/lib/demo-mode";
+import { isDemoMode, isSandboxRoute } from "@/lib/demo-mode";
 import type { IntegratedChatResponse } from "@/lib/integrated-chat-types";
 import type { ExperienceResult, IntentQuery, LayerType } from "@/lib/types";
 import type { RouteResponse } from "@/services/routing/route-planner";
@@ -257,7 +257,7 @@ export const useLivingParisStore = create<LivingParisState>((set, get) => {
     },
 
     submitFreeformIntent: async (text) => {
-      if (isDemoMode()) {
+      if (isDemoMode() && !isSandboxRoute()) {
         const lower = text.toLowerCase();
         const match = DEMO_SCENARIO_LIST.find((bundle) =>
           lower.includes(bundle.label.toLowerCase().split(" ·")[0] ?? bundle.id)
