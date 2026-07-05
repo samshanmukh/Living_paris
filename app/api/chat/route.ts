@@ -5,6 +5,8 @@ import { intentSchema } from "@/lib/intent-schema";
 import { EXPERIENCE_LIST } from "@/services/experience/modes";
 import { runIntegratedChat } from "@/services/chat/pipeline";
 
+export const maxDuration = 60;
+
 const integratedChatSchema = chatRequestSchema.extend({
   intent: intentSchema.optional(),
 });

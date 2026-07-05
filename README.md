@@ -485,7 +485,17 @@ API_URL=https://living-paris-api.living-paris.workers.dev
 NEXT_PUBLIC_API_URL=https://living-paris-api.living-paris.workers.dev
 ```
 
-**Vercel:** add the same two variables in Project → Settings → Environment Variables (or rely on committed `.env.production`).
+**Vercel:** import the repo at [vercel.com/new](https://vercel.com/new), then add secrets in Project → Settings → Environment Variables. See **[docs/VERCEL.md](docs/VERCEL.md)** for the full checklist.
+
+Required on Vercel:
+
+```env
+OPENROUTER_API_KEY=...
+NEXT_PUBLIC_MAPBOX_TOKEN=pk....
+MAPBOX_ACCESS_TOKEN=...          # recommended — street routes in chat
+```
+
+Non-secret defaults ship in committed `.env.production` (`API_URL`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_UI_DEV_CACHE=false`).
 
 ## Full backend setup (Member 4 / local API dev)
 
