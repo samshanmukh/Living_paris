@@ -229,7 +229,7 @@ function buildMapLayers({
           ...riskZones,
           {
             id: "backend-query-radius",
-            label: "Backend query radius",
+            label: "Search Radius",
             coordinate: queryCenter,
             radiusMeters: queryRadiusMeters,
             color: [108, 229, 255, 28] as [number, number, number, number]
@@ -243,12 +243,57 @@ function buildMapLayers({
         id: "team-risk-fields",
         data: queryZones,
         getPolygon: (zone) => makeCircle(zone.coordinate, zone.radiusMeters),
-        getFillColor: (zone) => zone.color,
-        getLineColor: (zone) => [zone.color[0], zone.color[1], zone.color[2], 155],
-        getLineWidth: 2,
+        getFillColor: (zone) => withAlpha(zone.color, Math.min(zone.color[3], 42)),
+        getLineColor: (zone) => [zone.color[0], zone.color[1], zone.color[2], 118],
+        getLineWidth: 1.1,
         lineWidthUnits: "pixels",
         filled: true,
         stroked: true,
+        pickable: false
+      }),
+      new PolygonLayer<RiskZone>({
+        id: "team-risk-outline",
+        data: queryZones,
+        getPolygon: (zone) => makeCircle(zone.coordinate, zone.radiusMeters * 1.015, 72),
+        getFillColor: [0, 0, 0, 0],
+        getLineColor: (zone) => [zone.color[0], zone.color[1], zone.color[2], 185],
+        getLineWidth: (zone) => (zone.id === "backend-query-radius" ? 1.8 : 1.35),
+        lineWidthUnits: "pixels",
+        filled: false,
+        stroked: true,
+        pickable: false
+      }),
+      new ScatterplotLayer<RiskZone>({
+        id: "team-risk-anchors",
+        data: queryZones,
+        getPosition: (zone) => zone.coordinate,
+        getRadius: (zone) =>
+          zone.id === "backend-query-radius" ? 8 * pulseScale : 5.5 * pulseScale,
+        radiusUnits: "pixels",
+        getFillColor: (zone) => [zone.color[0], zone.color[1], zone.color[2], 235],
+        getLineColor: [255, 255, 255, 220],
+        getLineWidth: 1.4,
+        lineWidthUnits: "pixels",
+        pickable: false
+      }),
+      new TextLayer<RiskZone>({
+        id: "team-risk-labels",
+        data: queryZones,
+        getPosition: signalLabelPosition,
+        getText: (zone) => zone.label,
+        getColor: [247, 243, 234, 244],
+        getSize: 12,
+        getPixelOffset: (zone) => signalLabelOffset(zone),
+        getTextAnchor: "middle",
+        getAlignmentBaseline: "bottom",
+        billboard: true,
+        background: true,
+        getBackgroundColor: [8, 12, 18, 218],
+        backgroundPadding: [9, 5],
+        getBorderColor: (zone) => [zone.color[0], zone.color[1], zone.color[2], 160],
+        getBorderWidth: 1,
+        fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+        fontWeight: 700,
         pickable: false
       })
     );
@@ -561,6 +606,17 @@ function withAlpha(
   alpha: number
 ): [number, number, number, number] {
   return [color[0], color[1], color[2], alpha];
+}
+
+function signalLabelPosition(zone: RiskZone): [number, number, number] {
+  return [zone.coordinate[0], zone.coordinate[1], 85];
+}
+
+function signalLabelOffset(zone: RiskZone): [number, number] {
+  const offsetSeed = Array.from(zone.id).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const horizontal = ((offsetSeed % 3) - 1) * 18;
+  const vertical = -36 - (offsetSeed % 2) * 14;
+  return [horizontal, vertical];
 }
 
 function featurePosition(feature: ParisFeature): Coordinate {

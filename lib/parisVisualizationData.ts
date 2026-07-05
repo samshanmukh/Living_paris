@@ -901,24 +901,38 @@ export const venues: Venue[] = [
 export const riskZones: RiskZone[] = [
   {
     id: "crowd-forum",
-    label: "Crowd uncertainty",
+    label: "Crowd Flow Variance",
     coordinate: [2.34632, 48.86042],
     radiusMeters: 135,
     color: [255, 106, 169, 55]
   },
   {
     id: "traffic-rivoli",
-    label: "Traffic sound field",
+    label: "Traffic Audio Edge",
     coordinate: [2.35101, 48.85669],
     radiusMeters: 110,
     color: [255, 85, 85, 62]
   },
   {
     id: "safe-bubble",
-    label: "Verified safe bubble",
+    label: "Verified Calm Zone",
     coordinate: [2.34875, 48.85863],
     radiusMeters: 170,
     color: [108, 229, 255, 42]
+  },
+  {
+    id: "step-free-handoff",
+    label: "Step-Free Handoff",
+    coordinate: [2.3504, 48.8579],
+    radiusMeters: 105,
+    color: [97, 240, 162, 44]
+  },
+  {
+    id: "crossing-window",
+    label: "Crossing Window",
+    coordinate: [2.3472, 48.8571],
+    radiusMeters: 95,
+    color: [255, 195, 92, 45]
   }
 ];
 
@@ -1063,72 +1077,114 @@ const hiddenGemsVenues: Venue[] = [
 const rainyRiskZones: RiskZone[] = [
   {
     id: "rain-exposed-boulevard",
-    label: "Exposed boulevard rain",
+    label: "Exposed Boulevard",
     coordinate: [2.3422, 48.87128],
     radiusMeters: 190,
     color: [75, 141, 255, 58]
   },
   {
     id: "rain-covered-passages",
-    label: "Covered passage cluster",
+    label: "Covered Passage Network",
     coordinate: [2.3404, 48.86852],
     radiusMeters: 230,
     color: [108, 229, 255, 42]
   },
   {
     id: "rain-metro-fallback",
-    label: "Metro fallback field",
+    label: "Metro Fallback Access",
     coordinate: [2.34605, 48.87156],
     radiusMeters: 130,
     color: [97, 240, 162, 46]
+  },
+  {
+    id: "rain-awning-chain",
+    label: "Awning Coverage Chain",
+    coordinate: [2.33886, 48.87072],
+    radiusMeters: 120,
+    color: [255, 195, 92, 40]
+  },
+  {
+    id: "rain-queue-shelter",
+    label: "Indoor Queue Shelter",
+    coordinate: [2.34382, 48.87104],
+    radiusMeters: 115,
+    color: [168, 139, 255, 42]
   }
 ];
 
 const dateNightRiskZones: RiskZone[] = [
   {
     id: "date-tourist-pressure",
-    label: "Tourist pressure",
+    label: "High Footfall Corridor",
     coordinate: [2.34167, 48.8575],
     radiusMeters: 165,
     color: [255, 106, 169, 48]
   },
   {
     id: "date-quiet-river-pocket",
-    label: "Quiet river pocket",
+    label: "Quiet River Pause",
     coordinate: [2.34, 48.85722],
     radiusMeters: 150,
     color: [255, 195, 92, 48]
   },
   {
     id: "date-budget-envelope",
-    label: "Budget-safe cluster",
+    label: "Budget-Fit Dining",
     coordinate: [2.348, 48.8574],
     radiusMeters: 130,
     color: [97, 240, 162, 42]
+  },
+  {
+    id: "date-viewpoint-window",
+    label: "Viewpoint Window",
+    coordinate: [2.3372, 48.85835],
+    radiusMeters: 120,
+    color: [108, 229, 255, 42]
+  },
+  {
+    id: "date-low-noise-edge",
+    label: "Low-Noise Edge",
+    coordinate: [2.34482, 48.85823],
+    radiusMeters: 115,
+    color: [168, 139, 255, 40]
   }
 ];
 
 const hiddenGemsRiskZones: RiskZone[] = [
   {
     id: "hidden-tourist-fade",
-    label: "Tourist paths faded",
+    label: "Lower Tourist Density",
     coordinate: [2.36475, 48.8639],
     radiusMeters: 210,
     color: [255, 85, 85, 38]
   },
   {
     id: "hidden-local-signal",
-    label: "Local discovery signal",
+    label: "Local Discovery Index",
     coordinate: [2.3602, 48.86616],
     radiusMeters: 220,
     color: [97, 240, 162, 52]
   },
   {
     id: "hidden-photo-texture",
-    label: "Photography texture",
+    label: "Street Texture Score",
     coordinate: [2.36712, 48.86468],
     radiusMeters: 150,
     color: [168, 139, 255, 44]
+  },
+  {
+    id: "hidden-quiet-reset",
+    label: "Quiet Reset Point",
+    coordinate: [2.3582, 48.8651],
+    radiusMeters: 130,
+    color: [108, 229, 255, 38]
+  },
+  {
+    id: "hidden-local-food",
+    label: "Local Food Cluster",
+    coordinate: [2.36222, 48.8649],
+    radiusMeters: 125,
+    color: [255, 195, 92, 42]
   }
 ];
 
