@@ -5,12 +5,14 @@ import dynamic from "next/dynamic";
 import { AnimatePresence } from "framer-motion";
 import { LanguageProvider } from "@/components/app/LanguageProvider";
 import { LanguageSelector } from "@/components/app/LanguageSelector";
+import UiDevToolbar from "@/features/dev/UiDevToolbar";
 import ChatSheet, { type ChatMessage } from "@/features/chat/ChatSheet";
 import IntentBottomSheet from "@/features/intent/IntentBottomSheet";
 import IntentMoodOverlay, { IntentHeader } from "@/features/intent/IntentMoodOverlay";
 import IntentPresetChips from "@/features/intent/IntentPresetChips";
 import IntentResponseBubble from "@/features/intent/IntentResponseBubble";
 import MapLayerControls from "@/features/map/MapLayerControls";
+import MapSnapshotLayer from "@/features/map/MapSnapshotLayer";
 import { useSpeechSynthesis } from "@/features/voice/useSpeechSynthesis";
 import { useLivingParisIntent } from "@/hooks/useLivingParisIntent";
 
@@ -49,12 +51,26 @@ function LivingParisExperienceInner() {
     routeGeometry,
     hiddenLayers,
     toggleLayer,
+    devCache,
   } = useLivingParisIntent();
+
+  const {
+    enabled: devCacheEnabled,
+    useLiveMap,
+    captureMapSnapshot,
+    persistCache,
+    frozen: mapFrozen,
+    mapSnapshot,
+    savedAt: cacheSavedAt,
+    setUseLiveMap,
+    clearDevCache,
+  } = devCache;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sheetOpen, setSheetOpen] = useState(true);
   const [focusedStopId, setFocusedStopId] = useState<string | null>(null);
   const lastSpokenRef = useRef<string | null>(null);
+  const mapCaptureRef = useRef<(() => Promise<string | null>) | null>(null);
 
   useEffect(() => {
     if (!livingParisResponse || livingParisResponse === lastSpokenRef.current) return;
@@ -65,6 +81,29 @@ function LivingParisExperienceInner() {
     });
     void speak(livingParisResponse);
   }, [livingParisResponse, speak]);
+
+  useEffect(() => {
+    if (!devCacheEnabled || !useLiveMap || !result || isGenerating) return;
+
+    const timer = window.setTimeout(async () => {
+      if (!mapCaptureRef.current) return;
+      await captureMapSnapshot(mapCaptureRef.current);
+    }, 2800);
+
+    return () => window.clearTimeout(timer);
+  }, [captureMapSnapshot, devCacheEnabled, isGenerating, result, useLiveMap]);
+
+  const handleCaptureSnapshot = useCallback(async () => {
+    if (mapCaptureRef.current) {
+      await captureMapSnapshot(mapCaptureRef.current);
+      return;
+    }
+    persistCache();
+  }, [captureMapSnapshot, persistCache]);
+
+  const handleCaptureReady = useCallback((capture: () => Promise<string | null>) => {
+    mapCaptureRef.current = capture;
+  }, []);
 
   const handleSubmit = useCallback(
     async (text: string) => {
@@ -114,16 +153,24 @@ function LivingParisExperienceInner() {
 
   return (
     <main className="lp-dark relative h-dvh w-full overflow-hidden bg-[#0f1117]">
-      <MapCanvas
-        mapState={result?.mapState ?? null}
-        routeGeometry={routeGeometry}
-        hiddenLayers={hiddenLayers}
-        routeAccentColor={currentIntent.accentColor}
-        onMarkerClick={(id) => {
-          setSheetOpen(true);
-          setFocusedStopId(id);
-        }}
-      />
+      {mapFrozen && mapSnapshot ? (
+        <MapSnapshotLayer
+          src={mapSnapshot}
+          accentColor={currentIntent.accentColor}
+        />
+      ) : (
+        <MapCanvas
+          mapState={result?.mapState ?? null}
+          routeGeometry={routeGeometry}
+          hiddenLayers={hiddenLayers}
+          routeAccentColor={currentIntent.accentColor}
+          onCaptureReady={handleCaptureReady}
+          onMarkerClick={(id) => {
+            setSheetOpen(true);
+            setFocusedStopId(id);
+          }}
+        />
+      )}
 
       <div className="pointer-events-none absolute inset-0 z-[1]">
         <AnimatePresence>
@@ -192,6 +239,16 @@ function LivingParisExperienceInner() {
           onSend={(text) => void handleSubmit(text)}
         />
       </div>
+
+      {devCacheEnabled && (
+        <UiDevToolbar
+          savedAt={cacheSavedAt}
+          frozen={mapFrozen}
+          onCapture={() => void handleCaptureSnapshot()}
+          onUseLiveMap={() => setUseLiveMap(true)}
+          onClear={clearDevCache}
+        />
+      )}
     </main>
   );
 }

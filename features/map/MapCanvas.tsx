@@ -27,6 +27,7 @@ interface MapCanvasProps {
   hiddenLayers?: Set<LayerType>;
   routeAccentColor?: string;
   onMarkerClick?: (id: string) => void;
+  onCaptureReady?: (capture: () => Promise<string | null>) => void;
 }
 
 export default function MapCanvas({
@@ -35,6 +36,7 @@ export default function MapCanvas({
   hiddenLayers,
   routeAccentColor,
   onMarkerClick,
+  onCaptureReady,
 }: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MLMap | null>(null);
@@ -103,6 +105,15 @@ export default function MapCanvas({
       loadedRef.current = true;
       addBuildingExtrusions(map);
       resize();
+
+      onCaptureReady?.(async () => {
+        try {
+          await new Promise((resolve) => window.setTimeout(resolve, 400));
+          return map.getCanvas().toDataURL("image/jpeg", 0.82);
+        } catch {
+          return null;
+        }
+      });
     });
 
     const resizeObserver =
@@ -124,7 +135,7 @@ export default function MapCanvas({
       overlayRef.current = null;
       loadedRef.current = false;
     };
-  }, []);
+  }, [onCaptureReady]);
 
   useEffect(() => {
     const map = mapRef.current;
