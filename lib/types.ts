@@ -182,6 +182,8 @@ export interface MapState {
   theme: MapTheme;
   visibleLayers: LayerType[];
   markers: MapMarker[];
+  /** Citywide ambient sensor/bike stations — not walk-radius filtered. */
+  contextMarkers?: MapMarker[];
   /** Ordered waypoints for the route — feed to POST /api/routes. */
   routeWaypoints: { lon: number; lat: number; name: string }[];
 }

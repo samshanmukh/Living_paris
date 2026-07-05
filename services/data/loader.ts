@@ -1,6 +1,7 @@
 import type { LayerType, ParisFeatureCollection } from "@/lib/types";
 import { FileDataStore } from "./file-store";
 
+/** Chat/experience reads bundled GeoJSON locally. Worker ASSETS/R2 serve external API clients. */
 const defaultStore = new FileDataStore();
 
 export async function loadLayer(layer: LayerType): Promise<ParisFeatureCollection> {

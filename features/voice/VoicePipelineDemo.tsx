@@ -106,11 +106,11 @@ export function VoicePipelineDemo() {
             pushTrace("6. TTS", "skip", "Speech synthesis not supported in this browser.");
           } else {
             const ttsId = pushTrace("6. TTS", "running", "Reading reply aloud…");
-            const started = speak(data.reply);
+            const started = await speak(data.reply);
             updateTrace(
               ttsId,
               started ? "ok" : "error",
-              started ? "Playback started" : "Could not start speech"
+              started ? "Playback started (Grok or browser)" : "Could not start speech"
             );
           }
         } else {
@@ -306,7 +306,7 @@ export function VoicePipelineDemo() {
           {ttsSupported && lastResponse.reply && (
             <button
               type="button"
-              onClick={() => speak(lastResponse.reply)}
+              onClick={() => void speak(lastResponse.reply)}
               className="mt-3 rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
             >
               🔊 Replay message

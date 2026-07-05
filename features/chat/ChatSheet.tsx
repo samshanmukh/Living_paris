@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useSpeechRecognition } from "@/features/voice/useSpeechRecognition";
 
 export interface ChatMessage {
   id: string;
@@ -16,28 +17,6 @@ interface ChatSheetProps {
   onSend: (message: string) => void;
 }
 
-/** Minimal typing for the vendor-prefixed Web Speech API. */
-interface SpeechRecognitionLike {
-  lang: string;
-  interimResults: boolean;
-  maxAlternatives: number;
-  onresult: ((event: { results: { [i: number]: { [j: number]: { transcript: string } } } }) => void) | null;
-  onend: (() => void) | null;
-  onerror: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-}
-
-function getSpeechRecognition(): (new () => SpeechRecognitionLike) | null {
-  if (typeof window === "undefined") return null;
-  const w = window as unknown as Record<string, unknown>;
-  return (w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null) as
-    | (new () => SpeechRecognitionLike)
-    | null;
-}
-
-const subscribeNoop = () => () => {};
-
 export default function ChatSheet({
   messages,
   chips,
@@ -45,22 +24,7 @@ export default function ChatSheet({
   onSend,
 }: ChatSheetProps) {
   const [draft, setDraft] = useState("");
-  const [listening, setListening] = useState(false);
-  // SSR-safe browser capability check without setState-in-effect.
-  const voiceSupported = useSyncExternalStore(
-    subscribeNoop,
-    () => getSpeechRecognition() != null,
-    () => false
-  );
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    scrollRef.current?.scrollTo({
-      top: scrollRef.current.scrollHeight,
-      behavior: "smooth",
-    });
-  }, [messages, thinking]);
 
   const send = useCallback(
     (text: string) => {
@@ -72,38 +36,40 @@ export default function ChatSheet({
     [onSend, thinking]
   );
 
+  const onFinalTranscript = useCallback(
+    (text: string) => send(text),
+    [send]
+  );
+
+  const {
+    supported: voiceSupported,
+    listening,
+    transcript,
+    start,
+    stop,
+  } = useSpeechRecognition({ lang: "en-US", onFinalTranscript });
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({
+      top: scrollRef.current.scrollHeight,
+      behavior: "smooth",
+    });
+  }, [messages, thinking, transcript]);
+
   const toggleMic = useCallback(() => {
     if (listening) {
-      recognitionRef.current?.stop();
+      stop();
       return;
     }
-    const SR = getSpeechRecognition();
-    if (!SR) return;
-
-    const recognition = new SR();
-    recognition.lang = "en-US";
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-    recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      send(transcript);
-    };
-    recognition.onend = () => setListening(false);
-    recognition.onerror = () => setListening(false);
-
-    recognitionRef.current = recognition;
-    setListening(true);
-    recognition.start();
-  }, [listening, send]);
+    start();
+  }, [listening, start, stop]);
 
   return (
     <div className="pointer-events-auto flex max-h-[46dvh] flex-col rounded-t-[26px] bg-cream-soft/95 shadow-[0_-12px_44px_-14px_rgba(43,36,28,0.35)] backdrop-blur-md">
-      {/* grabber */}
       <div className="flex justify-center pb-1 pt-2.5">
         <div className="h-1 w-10 rounded-full bg-ink/15" />
       </div>
 
-      {/* messages */}
       <div
         ref={scrollRef}
         className="no-scrollbar flex-1 space-y-2.5 overflow-y-auto px-4 pb-2 pt-1"
@@ -137,19 +103,18 @@ export default function ChatSheet({
             animate={{ opacity: 1, y: 0 }}
             className="mr-auto flex items-center gap-1.5 rounded-2xl rounded-bl-md bg-white/85 px-3.5 py-3 shadow-sm"
           >
-            {[0, 1, 2].map((i) => (
+            {[0, 1, 2].map((index) => (
               <motion.span
-                key={i}
+                key={index}
                 className="h-1.5 w-1.5 rounded-full bg-terracotta"
                 animate={{ opacity: [0.25, 1, 0.25] }}
-                transition={{ duration: 1.1, repeat: Infinity, delay: i * 0.18 }}
+                transition={{ duration: 1.1, repeat: Infinity, delay: index * 0.18 }}
               />
             ))}
           </motion.div>
         )}
       </div>
 
-      {/* suggestion chips */}
       {chips.length > 0 && (
         <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pb-2">
           {chips.map((chip) => (
@@ -166,12 +131,11 @@ export default function ChatSheet({
         </div>
       )}
 
-      {/* input row */}
       <div className="flex items-center gap-2 border-t border-ink/8 px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-2.5">
         <input
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && send(draft)}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => event.key === "Enter" && send(draft)}
           placeholder={listening ? "Listening…" : "Talk to Paris…"}
           className="min-w-0 flex-1 rounded-full border border-ink/10 bg-white/80 px-4 py-2.5 text-[14px] text-ink outline-none placeholder:text-ink/35 focus:border-terracotta/50"
         />

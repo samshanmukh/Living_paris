@@ -7,7 +7,7 @@ import type {
   MapState,
   ScoredFeature,
 } from "@/lib/types";
-import { CONTEXT_OVERLAY_BY_EXPERIENCE } from "@/lib/map-layer-styles";
+import { CONTEXT_OVERLAY_BY_EXPERIENCE, CONTEXT_OVERLAY_LAYERS } from "@/lib/map-layer-styles";
 import { loadLayers } from "@/services/data/loader";
 import {
   filterWithinRadius,
@@ -29,14 +29,41 @@ function layersForMode(
   layerWeights: Partial<Record<LayerType, number>>,
   override?: LayerType[]
 ): LayerType[] {
-  const primary = override?.length
-    ? override
-    : (Object.entries(layerWeights) as [LayerType, number][])
-        .sort((a, b) => b[1] - a[1])
-        .map(([layer]) => layer);
-
+  const modePrimary = (Object.entries(layerWeights) as [LayerType, number][])
+    .sort((a, b) => b[1] - a[1])
+    .map(([layer]) => layer);
   const context = CONTEXT_OVERLAY_BY_EXPERIENCE[modeId] ?? [];
-  return [...new Set([...primary, ...context])];
+
+  if (override?.length) {
+    const overlayOnly = override.every((layer) =>
+      CONTEXT_OVERLAY_LAYERS.includes(layer)
+    );
+    if (overlayOnly) {
+      return [...new Set([...modePrimary, ...override, ...context])];
+    }
+    return [...new Set([...override, ...context])];
+  }
+
+  return [...new Set([...modePrimary, ...context])];
+}
+
+async function loadContextMarkers(layers: LayerType[]): Promise<MapMarker[]> {
+  const contextTypes = layers.filter((layer) => CONTEXT_OVERLAY_LAYERS.includes(layer));
+  if (!contextTypes.length) return [];
+
+  const collection = await loadLayers(contextTypes);
+  return collection.features.map((feature) => ({
+    id: feature.properties.id,
+    name: feature.properties.name,
+    coords: feature.geometry.coordinates as [number, number],
+    layer: feature.properties.layer,
+    score: 0,
+    highlighted: false,
+    reasons: [],
+    noiseLevel: feature.properties.noiseLevel,
+    airQualityIndex: feature.properties.airQualityIndex,
+    capacity: feature.properties.capacity,
+  }));
 }
 
 /** Center the camera on the itinerary rather than the raw query center. */
@@ -74,6 +101,7 @@ export async function runExperience(intent: IntentQuery): Promise<ExperienceResu
   const collection = await loadLayers(layers);
   const within = filterWithinRadius(collection.features, center, radiusMeters, true);
   const ranked = rankForExperience(within, mode, intent, center);
+  const contextMarkers = await loadContextMarkers(layers);
 
   const destinations = ranked.filter(
     (s) => !NON_DESTINATION_LAYERS.includes(s.feature.properties.layer)
@@ -119,6 +147,7 @@ export async function runExperience(intent: IntentQuery): Promise<ExperienceResu
     theme: mode.theme,
     visibleLayers: layers,
     markers,
+    contextMarkers,
     routeWaypoints: itinerary.stops.map((s) => ({
       lon: s.coords[0],
       lat: s.coords[1],

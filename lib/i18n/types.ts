@@ -1,4 +1,4 @@
-import type { SceneId } from "@/lib/parisVisualizationData";
+export type SceneId = "borrowed-senses" | "rainy-day" | "date-night" | "hidden-gems";
 
 export type Locale = "en" | "fr";
 

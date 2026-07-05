@@ -28,6 +28,9 @@ export const CONTEXT_OVERLAY_BY_EXPERIENCE: Partial<
   "photo-walk": ["air-quality"],
   "local-explorer": ["bikes"],
   "food-tour": ["bikes"],
+  "rainy-day": ["noise"],
+  "nightlife": ["noise"],
+  "museums-art": ["air-quality"],
 };
 
 export function layerAccent(layer: LayerType, theme: MapTheme): Rgba {
