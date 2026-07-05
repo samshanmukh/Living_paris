@@ -18,7 +18,7 @@ export default function UiDevToolbar({
   onClear,
 }: UiDevToolbarProps) {
   return (
-    <div className="pointer-events-auto fixed bottom-24 left-3 z-[60] max-w-[220px] rounded-2xl border border-white/12 bg-black/80 px-3 py-2.5 text-[11px] text-white/70 shadow-xl backdrop-blur-md">
+    <div className="pointer-events-auto fixed left-3 top-1/2 z-[60] max-w-[200px] -translate-y-1/2 rounded-2xl border border-white/12 bg-black/75 px-3 py-2.5 text-[11px] text-white/70 shadow-xl backdrop-blur-md">
       <p className="font-semibold text-white/90">UI dev cache</p>
       <p className="mt-0.5 text-white/45">
         {savedAt ? `Saved ${formatCacheAge(savedAt)}` : "Nothing saved yet"}

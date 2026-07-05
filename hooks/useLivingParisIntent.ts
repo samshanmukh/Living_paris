@@ -124,10 +124,8 @@ export function useLivingParisIntent() {
 
       if (saveUiDevCache(payload)) {
         setCacheSavedAt(payload.savedAt);
-        if (nextSnapshot) {
-          setMapSnapshot(nextSnapshot);
-          setUseLiveMap(false);
-        }
+        // Keep the live map for this session; frozen mode only kicks in on reload.
+        if (nextSnapshot) setMapSnapshot(nextSnapshot);
       }
     },
     [devCacheEnabled]

@@ -79,6 +79,8 @@ function LivingParisExperienceInner() {
       if (prev.some((m) => m.role === "paris" && m.text === livingParisResponse)) return prev;
       return [...prev, { id: nextId(), role: "paris", text: livingParisResponse }];
     });
+    // Collapse the sheet so the map (and its speech bubble) stays the hero.
+    setSheetOpen(false);
     void speak(livingParisResponse);
   }, [livingParisResponse, speak]);
 
@@ -176,8 +178,9 @@ function LivingParisExperienceInner() {
         <AnimatePresence>
           <IntentMoodOverlay intent={currentIntent} />
         </AnimatePresence>
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_10%,rgba(255,250,240,0.25),transparent_55%)]" />
-        <div className="absolute inset-0 shadow-[inset_0_0_120px_30px_rgba(94,76,56,0.14)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(165deg,rgba(255,193,120,0.16),transparent_38%,rgba(255,170,90,0.05)_70%,rgba(94,60,30,0.10))]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_10%,rgba(255,250,240,0.2),transparent_55%)]" />
+        <div className="absolute inset-0 shadow-[inset_0_0_120px_30px_rgba(94,76,56,0.16)]" />
       </div>
 
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col items-center gap-2 px-4 pt-[max(0.9rem,env(safe-area-inset-top))]">

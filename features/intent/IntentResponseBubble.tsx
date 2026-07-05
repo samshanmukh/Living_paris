@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
 interface IntentResponseBubbleProps {
@@ -11,9 +12,24 @@ export default function IntentResponseBubble({
   response,
   accentColor,
 }: IntentResponseBubbleProps) {
+  const [visible, setVisible] = useState(false);
+  const [lastResponse, setLastResponse] = useState<string | null>(null);
+
+  // Derived-state-during-render: show the bubble whenever a new response lands.
+  if (response !== lastResponse) {
+    setLastResponse(response);
+    setVisible(response != null);
+  }
+
+  useEffect(() => {
+    if (!visible) return;
+    const timer = window.setTimeout(() => setVisible(false), 8000);
+    return () => window.clearTimeout(timer);
+  }, [visible, lastResponse]);
+
   return (
     <AnimatePresence>
-      {response && (
+      {response && visible && (
         <motion.div
           key={response}
           initial={{ opacity: 0, y: 10, scale: 0.96 }}

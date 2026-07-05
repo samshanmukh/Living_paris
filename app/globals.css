@@ -108,6 +108,59 @@ body {
   }
 }
 
+/* Speech bubble anchored on the map — Paris speaks from a place */
+.lp-speech {
+  position: relative;
+  max-width: 190px;
+  padding: 8px 12px 9px;
+  border-radius: 16px;
+  border-bottom-left-radius: 5px;
+  background: rgba(255, 253, 248, 0.96);
+  color: #2b241c;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  box-shadow:
+    0 10px 28px -10px rgba(94, 76, 56, 0.45),
+    0 0 0 1px rgba(94, 76, 56, 0.08);
+  animation: lp-speech-in 0.55s cubic-bezier(0.34, 1.4, 0.5, 1) 0.9s both;
+  pointer-events: none;
+}
+
+.lp-speech::after {
+  content: "";
+  position: absolute;
+  bottom: -7px;
+  left: 16px;
+  width: 14px;
+  height: 14px;
+  background: rgba(255, 253, 248, 0.96);
+  transform: rotate(45deg);
+  border-radius: 2px;
+  box-shadow: 3px 3px 6px -3px rgba(94, 76, 56, 0.25);
+}
+
+.lp-speech-tag {
+  display: block;
+  margin-bottom: 1px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--lp-accent, #c4593a);
+}
+
+@keyframes lp-speech-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .maplibregl-popup-content {
   border-radius: 12px;
   padding: 10px 12px;

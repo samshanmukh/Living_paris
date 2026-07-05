@@ -114,14 +114,20 @@ export default function MapCanvas({
         easing: (t) => t,
       });
 
-      onCaptureReady?.(async () => {
-        try {
-          await new Promise((resolve) => window.setTimeout(resolve, 400));
-          return map.getCanvas().toDataURL("image/jpeg", 0.82);
-        } catch {
-          return null;
-        }
-      });
+      // WebGL buffers clear after present — capture inside a render frame.
+      onCaptureReady?.(
+        () =>
+          new Promise<string | null>((resolve) => {
+            map.once("render", () => {
+              try {
+                resolve(map.getCanvas().toDataURL("image/jpeg", 0.82));
+              } catch {
+                resolve(null);
+              }
+            });
+            map.triggerRepaint();
+          })
+      );
     });
 
     const resizeObserver =
@@ -204,6 +210,23 @@ export default function MapCanvas({
         markersRef.current.push(mapMarker);
       });
 
+      const firstStop = mapState.routeWaypoints[0];
+      if (firstStop) {
+        const bubble = document.createElement("div");
+        bubble.className = "lp-speech";
+        bubble.innerHTML = `<span class="lp-speech-tag">Start here</span>${escapeHtml(
+          firstStop.name
+        )}`;
+        const bubbleMarker = new maplibregl.Marker({
+          element: bubble,
+          anchor: "bottom",
+          offset: [0, -34],
+        })
+          .setLngLat([firstStop.lon, firstStop.lat])
+          .addTo(map);
+        markersRef.current.push(bubbleMarker);
+      }
+
       const heroCoords = mapState.markers
         .filter((marker) => marker.highlighted)
         .map((marker) => marker.coords);
@@ -214,7 +237,7 @@ export default function MapCanvas({
           new maplibregl.LngLatBounds(heroCoords[0], heroCoords[0])
         );
         map.fitBounds(bounds, {
-          padding: { top: 110, bottom: 330, left: 60, right: 60 },
+          padding: { top: 210, bottom: 330, left: 70, right: 70 },
           pitch: mapState.flyTo.pitch,
           duration: 2200,
           essential: true,
