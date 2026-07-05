@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import "maplibre-gl/dist/maplibre-gl.css";
+@import "mapbox-gl/dist/mapbox-gl.css";
 
 @theme inline {
   --color-cream: #f3ede2;
@@ -47,6 +47,7 @@ body {
 .lp-marker {
   width: 14px;
   height: 14px;
+  padding: 0;
   border-radius: 999px;
   background: var(--lp-accent, #d9a441);
   border: 2px solid rgba(255, 255, 255, 0.85);
@@ -161,7 +162,7 @@ body {
   }
 }
 
-.maplibregl-popup-content {
+.mapboxgl-popup-content {
   border-radius: 12px;
   padding: 10px 12px;
   font-family: var(--font-inter), sans-serif;

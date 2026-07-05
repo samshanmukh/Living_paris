@@ -1,4 +1,5 @@
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+import OpenAI from "openai";
+
 const DEFAULT_MODEL = "x-ai/grok-4.3";
 
 export type ChatRole = "system" | "user" | "assistant";
@@ -8,14 +9,13 @@ export interface OpenRouterMessage {
   content: string;
 }
 
+let client: OpenAI | null = null;
+
 export function getOpenRouterModel(): string {
   return process.env.OPENROUTER_MODEL?.trim() || DEFAULT_MODEL;
 }
 
-export async function chatCompletion(options: {
-  messages: OpenRouterMessage[];
-  jsonMode?: boolean;
-}): Promise<string> {
+export function getOpenRouterClient(): OpenAI {
   const apiKey = process.env.OPENROUTER_API_KEY?.trim();
   if (!apiKey) {
     throw new Error(
@@ -23,32 +23,33 @@ export async function chatCompletion(options: {
     );
   }
 
-  const res = await fetch(OPENROUTER_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
-      "X-Title": "Living Paris",
-    },
-    body: JSON.stringify({
-      model: getOpenRouterModel(),
-      messages: options.messages,
-      temperature: 0.2,
-      max_tokens: options.jsonMode ? 512 : 1024,
-      ...(options.jsonMode ? { response_format: { type: "json_object" } } : {}),
-    }),
-  });
-
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`OpenRouter request failed (${res.status}): ${text}`);
+  if (!client) {
+    client = new OpenAI({
+      apiKey,
+      baseURL: "https://openrouter.ai/api/v1",
+      defaultHeaders: {
+        "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+        "X-Title": "Living Paris",
+      },
+    });
   }
 
-  const data = (await res.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-  const content = data.choices?.[0]?.message?.content;
+  return client;
+}
+
+export async function chatCompletion(options: {
+  messages: OpenRouterMessage[];
+  jsonMode?: boolean;
+}): Promise<string> {
+  const completion = await getOpenRouterClient().chat.completions.create({
+    model: getOpenRouterModel(),
+    messages: options.messages,
+    temperature: 0.2,
+    max_tokens: options.jsonMode ? 512 : 1024,
+    ...(options.jsonMode ? { response_format: { type: "json_object" } } : {}),
+  });
+
+  const content = completion.choices[0]?.message?.content;
   if (!content) {
     throw new Error("OpenRouter returned empty content");
   }

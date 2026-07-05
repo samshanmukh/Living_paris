@@ -1,6 +1,6 @@
 import type { Layer } from "@deck.gl/core";
 import { HeatmapLayer } from "@deck.gl/aggregation-layers";
-import { ColumnLayer, PathLayer, ScatterplotLayer } from "@deck.gl/layers";
+import { PathLayer, ScatterplotLayer } from "@deck.gl/layers";
 import type { Feature, LineString } from "geojson";
 import {
   CONTEXT_OVERLAY_LAYERS,
@@ -178,30 +178,6 @@ export function buildDeckLayers({
         getLineWidth: 1.5,
         lineWidthUnits: "pixels",
         pickable: false,
-      })
-    );
-  }
-
-  const heroes = mapState.markers.filter(
-    (marker) => marker.highlighted && !CONTEXT_OVERLAY_LAYERS.includes(marker.layer)
-  );
-
-  if (heroes.length) {
-    layers.push(
-      new ColumnLayer<MapMarker>({
-        id: "lp-hero-plinths",
-        data: heroes,
-        diskResolution: 18,
-        extruded: true,
-        radius: 22,
-        getPosition: (marker) => marker.coords,
-        getElevation: () => 90,
-        getFillColor: (marker) => {
-          const color = layerAccent(marker.layer, mapState.theme);
-          return [color[0], color[1], color[2], 190] as [number, number, number, number];
-        },
-        pickable: false,
-        elevationScale: 1,
       })
     );
   }

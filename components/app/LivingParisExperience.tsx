@@ -6,10 +6,8 @@ import { AnimatePresence } from "framer-motion";
 import { LanguageProvider } from "@/components/app/LanguageProvider";
 import { LanguageSelector } from "@/components/app/LanguageSelector";
 import UiDevToolbar from "@/features/dev/UiDevToolbar";
-import ChatSheet, { type ChatMessage } from "@/features/chat/ChatSheet";
-import IntentBottomSheet from "@/features/intent/IntentBottomSheet";
+import IntentDrawer, { type ChatMessage } from "@/features/intent/IntentDrawer";
 import IntentMoodOverlay, { IntentHeader } from "@/features/intent/IntentMoodOverlay";
-import IntentPresetChips from "@/features/intent/IntentPresetChips";
 import IntentResponseBubble from "@/features/intent/IntentResponseBubble";
 import MapLayerControls from "@/features/map/MapLayerControls";
 import MapSnapshotLayer from "@/features/map/MapSnapshotLayer";
@@ -67,8 +65,8 @@ function LivingParisExperienceInner() {
   } = devCache;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [sheetOpen, setSheetOpen] = useState(true);
   const [focusedStopId, setFocusedStopId] = useState<string | null>(null);
+  const [expandSignal, setExpandSignal] = useState(0);
   const lastSpokenRef = useRef<string | null>(null);
   const mapCaptureRef = useRef<(() => Promise<string | null>) | null>(null);
 
@@ -79,8 +77,6 @@ function LivingParisExperienceInner() {
       if (prev.some((m) => m.role === "paris" && m.text === livingParisResponse)) return prev;
       return [...prev, { id: nextId(), role: "paris", text: livingParisResponse }];
     });
-    // Collapse the sheet so the map (and its speech bubble) stays the hero.
-    setSheetOpen(false);
     void speak(livingParisResponse);
   }, [livingParisResponse, speak]);
 
@@ -111,7 +107,6 @@ function LivingParisExperienceInner() {
     async (text: string) => {
       setMessages((prev) => [...prev, { id: nextId(), role: "user", text }]);
       setFocusedStopId(null);
-      setSheetOpen(true);
       try {
         await submitFreeformIntent(text);
       } catch {
@@ -133,7 +128,6 @@ function LivingParisExperienceInner() {
       const label = presetIntents.find((p) => p.id === id)?.label ?? id;
       setMessages((prev) => [...prev, { id: nextId(), role: "user", text: label }]);
       setFocusedStopId(null);
-      setSheetOpen(true);
       try {
         await selectPreset(id);
       } catch {
@@ -168,8 +162,8 @@ function LivingParisExperienceInner() {
           routeAccentColor={currentIntent.accentColor}
           onCaptureReady={handleCaptureReady}
           onMarkerClick={(id) => {
-            setSheetOpen(true);
             setFocusedStopId(id);
+            setExpandSignal((value) => value + 1);
           }}
         />
       )}
@@ -216,36 +210,24 @@ function LivingParisExperienceInner() {
         )}
       </div>
 
-      <div className="absolute inset-x-0 bottom-0 z-10 mx-auto flex w-full max-w-md flex-col justify-end sm:max-w-lg">
+      <div className="pointer-events-none absolute inset-x-0 bottom-[240px] z-10 mx-auto w-full max-w-md sm:max-w-lg">
         <IntentResponseBubble
           response={livingParisResponse}
           accentColor={currentIntent.accentColor}
         />
-
-        {(hasStarted || currentIntent.stops.length > 0) && (
-          <IntentBottomSheet
-            intent={currentIntent}
-            open={sheetOpen}
-            isGenerating={isGenerating}
-            focusedStopId={focusedStopId}
-            onToggle={() => setSheetOpen((value) => !value)}
-          />
-        )}
-
-        <IntentPresetChips
-          presets={presetIntents}
-          selectedId={selectedPresetId}
-          disabled={isGenerating}
-          onSelect={(id) => void handlePreset(id)}
-        />
-
-        <ChatSheet
-          messages={messages}
-          thinking={isGenerating}
-          accentColor={currentIntent.accentColor}
-          onSend={(text) => void handleSubmit(text)}
-        />
       </div>
+
+      <IntentDrawer
+        intent={currentIntent}
+        presets={presetIntents}
+        selectedPresetId={selectedPresetId}
+        messages={messages}
+        isGenerating={isGenerating}
+        focusedStopId={focusedStopId}
+        expandSignal={expandSignal}
+        onSend={(text) => void handleSubmit(text)}
+        onSelectPreset={(id) => void handlePreset(id)}
+      />
 
       {devCacheEnabled && (
         <UiDevToolbar
