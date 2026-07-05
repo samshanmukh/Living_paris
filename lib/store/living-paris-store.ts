@@ -22,6 +22,15 @@ import {
   type LivingParisIntent,
   type PresetIntentId,
 } from "@/lib/living-paris-intent";
+import {
+  DEMO_BUNDLES,
+  DEMO_CHIP_OPTIONS,
+  DEMO_SCENARIO_LIST,
+  buildIntentFromDemoBundle,
+  type DemoBundle,
+  type DemoScenarioId,
+} from "@/lib/demo-bundles";
+import { isDemoMode } from "@/lib/demo-mode";
 import type { IntegratedChatResponse } from "@/lib/integrated-chat-types";
 import type { ExperienceResult, IntentQuery, LayerType } from "@/lib/types";
 import type { RouteResponse } from "@/services/routing/route-planner";
@@ -63,6 +72,8 @@ async function postChat(
 interface LivingParisState {
   currentIntent: LivingParisIntent;
   selectedPresetId: PresetIntentId | null;
+  selectedDemoId: DemoScenarioId | null;
+  activeDemoBundle: DemoBundle | null;
   isGenerating: boolean;
   livingParisResponse: string | null;
   intentSource: IntegratedChatResponse["intentSource"] | null;
@@ -75,6 +86,7 @@ interface LivingParisState {
   useLiveMap: boolean;
 
   selectPreset: (intentId: PresetIntentId) => Promise<void>;
+  selectDemoScenario: (scenarioId: DemoScenarioId) => Promise<void>;
   submitFreeformIntent: (text: string) => Promise<void>;
   toggleLayer: (layer: LayerType) => void;
   setUseLiveMap: (value: boolean) => void;
@@ -189,6 +201,8 @@ export const useLivingParisStore = create<LivingParisState>((set, get) => {
   return {
     currentIntent: boot?.currentIntent ?? buildIdleIntent(),
     selectedPresetId: boot?.selectedPresetId ?? null,
+    selectedDemoId: null,
+    activeDemoBundle: null,
     isGenerating: false,
     livingParisResponse: boot?.livingParisResponse ?? null,
     intentSource: null,
@@ -208,7 +222,53 @@ export const useLivingParisStore = create<LivingParisState>((set, get) => {
       await runQuery(preset.prompt, { preset, shell }, { shell, presetId: intentId });
     },
 
+    selectDemoScenario: async (scenarioId) => {
+      const bundle = DEMO_BUNDLES[scenarioId];
+      const planningShell = {
+        ...buildIntentFromDemoBundle(bundle),
+        response: "Living Paris is planning…",
+        stops: [],
+      };
+
+      set({
+        currentIntent: planningShell,
+        selectedDemoId: scenarioId,
+        selectedPresetId: null,
+        activeDemoBundle: null,
+        isGenerating: true,
+        livingParisResponse: null,
+        intentSource: "heuristic",
+        result: null,
+        route: null,
+        routeGeometry: null,
+        hiddenLayers: new Set(),
+        useLiveMap: false,
+      });
+
+      await new Promise((resolve) => window.setTimeout(resolve, 850));
+
+      const intent = buildIntentFromDemoBundle(bundle);
+      set({
+        currentIntent: intent,
+        activeDemoBundle: bundle,
+        livingParisResponse: bundle.reply,
+        isGenerating: false,
+      });
+    },
+
     submitFreeformIntent: async (text) => {
+      if (isDemoMode()) {
+        const lower = text.toLowerCase();
+        const match = DEMO_SCENARIO_LIST.find((bundle) =>
+          lower.includes(bundle.label.toLowerCase().split(" ·")[0] ?? bundle.id)
+        );
+        if (match) {
+          await get().selectDemoScenario(match.id);
+          return;
+        }
+        await get().selectDemoScenario("date-night-40");
+        return;
+      }
       const parsed = parseFreeformIntent(text);
       const shell = buildIntentFromParsedShell(parsed);
       shell.response = "Living Paris is planning…";
@@ -287,3 +347,6 @@ export const PRESET_CHIP_OPTIONS = PRESET_INTENTS.map((preset) => ({
   emoji: preset.emoji,
   accentColor: preset.accentColor,
 }));
+
+export { DEMO_CHIP_OPTIONS, isDemoMode };
+export type { DemoScenarioId };

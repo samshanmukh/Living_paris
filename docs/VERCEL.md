@@ -39,8 +39,9 @@ In **Project → Settings → Environment Variables**, add these for **Productio
 | `OPENROUTER_TTS_VOICE` | Optional | Default `Ara` |
 | `NEXT_PUBLIC_APP_URL` | Optional | Vercel sets `VERCEL_URL` automatically; override for custom domain |
 | `NEXT_PUBLIC_UI_DEV_CACHE` | Optional | Set `false` in production (default in `.env.production`) |
+| `NEXT_PUBLIC_DEMO_MODE` | Optional | Set `true` for diorama demo (6 Ali scenarios, no Mapbox/API) |
 
-Non-secret defaults are committed in `.env.production`:
+Non-secret defaults ship in committed `.env.production`:
 
 ```env
 API_URL=https://living-paris-api.living-paris.workers.dev

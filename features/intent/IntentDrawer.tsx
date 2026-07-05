@@ -4,11 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ChevronUp, Mic, Send, Square } from "lucide-react";
 import { Drawer } from "vaul";
-import IntentPresetChips from "@/features/intent/IntentPresetChips";
+import IntentPresetChips, { type PresetChipOption, type ScenarioChipId } from "@/features/intent/IntentPresetChips";
 import { useSpeechRecognition } from "@/features/voice/useSpeechRecognition";
 import { messageVariants, motionTransition, stopVariants } from "@/lib/motion-presets";
 import { cn } from "@/lib/utils";
-import type { LivingParisIntent, PresetIntentId } from "@/lib/living-paris-intent";
+import type { LivingParisIntent } from "@/lib/living-paris-intent";
 
 const COLLAPSED_SNAP = "232px";
 const EXPANDED_SNAP = 0.74;
@@ -19,23 +19,16 @@ export interface ChatMessage {
   text: string;
 }
 
-interface PresetChip {
-  id: PresetIntentId;
-  label: string;
-  emoji: string;
-  accentColor: string;
-}
-
 interface IntentDrawerProps {
   intent: LivingParisIntent;
-  presets: PresetChip[];
-  selectedPresetId: PresetIntentId | null;
+  presets: PresetChipOption[];
+  selectedPresetId: ScenarioChipId | null;
   messages: ChatMessage[];
   isGenerating: boolean;
   focusedStopId?: string | null;
   expandSignal: number;
   onSend: (text: string) => void;
-  onSelectPreset: (id: PresetIntentId) => void;
+  onSelectPreset: (id: ScenarioChipId) => void;
 }
 
 export default function IntentDrawer({
