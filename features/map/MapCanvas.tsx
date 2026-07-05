@@ -17,12 +17,19 @@ import { effectiveRain, useSceneStore } from "@/lib/store/useSceneStore";
 import { useCityStore } from "@/lib/store/useCityStore";
 import { usePrefsStore } from "@/lib/store/usePrefsStore";
 import type { MapState } from "@/lib/types";
+import { getMapboxPublicToken } from "@/lib/mapbox-token";
 import MapAnnotations from "./MapAnnotations";
 import MapControls from "./MapControls";
 import { LivingParisOverlay } from "./overlay";
 import { routeBadgeLabel } from "./RouteLayer";
+import {
+  applyStandardMapConfig,
+  getStandardMapConfig,
+  MAPBOX_STANDARD_STYLE,
+  resolveLightPreset,
+} from "./standard-style";
 
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+const MAPBOX_TOKEN = getMapboxPublicToken();
 const PARIS_CENTER = { longitude: 2.3522, latitude: 48.8566 };
 const PARIS_LNG_LAT: [number, number] = [2.3522, 48.8566];
 
@@ -58,6 +65,16 @@ export default function MapCanvas({
     usePrefsStore((state) => state.reducedMotion) || prefersReducedMotion();
   const accent = routeAccentColor ?? "var(--accent, #d9a441)";
 
+  const standardMapConfig = useMemo(
+    () => ({
+      basemap: {
+        ...getStandardMapConfig(mapState?.theme).basemap,
+        lightPreset: resolveLightPreset(mapState?.theme, scene.lightPreset),
+      },
+    }),
+    [mapState?.theme, scene.lightPreset]
+  );
+
   useEffect(() => {
     fetchParisWeather()
       .then(applyWeather)
@@ -73,12 +90,10 @@ export default function MapCanvas({
     const map = mapRef.current?.getMap();
     if (!map) return;
     setMapLoaded(true);
-
-    try {
-      map.setConfigProperty("basemap", "lightPreset", scene.lightPreset);
-    } catch {
-      // Standard style config unavailable — ignore.
-    }
+    applyStandardMapConfig(map, {
+      theme: mapState?.theme,
+      lightPreset: scene.lightPreset,
+    });
 
     if (snapshotCapture) {
       onCaptureReady?.(
@@ -95,17 +110,16 @@ export default function MapCanvas({
           })
       );
     }
-  }, [onCaptureReady, scene.lightPreset, snapshotCapture]);
+  }, [mapState?.theme, onCaptureReady, scene.lightPreset, snapshotCapture]);
 
   useEffect(() => {
     const map = mapRef.current?.getMap();
     if (!map || !mapLoaded) return;
-    try {
-      map.setConfigProperty("basemap", "lightPreset", scene.lightPreset);
-    } catch {
-      // ignore
-    }
-  }, [mapLoaded, scene.lightPreset]);
+    applyStandardMapConfig(map, {
+      theme: mapState?.theme,
+      lightPreset: scene.lightPreset,
+    });
+  }, [mapLoaded, mapState?.theme, scene.lightPreset]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -198,7 +212,9 @@ export default function MapCanvas({
     return (
       <div className="absolute inset-0 z-0 grid place-items-center bg-[var(--paper,#efe9df)] px-8 text-center">
         <p className="text-sm text-[var(--ink-soft)]">
-          Set <code className="font-semibold">NEXT_PUBLIC_MAPBOX_TOKEN</code> in{" "}
+          Set{" "}
+          <code className="font-semibold">NEXT_PUBLIC_MAPBOX_TOKEN</code> or{" "}
+          <code className="font-semibold">VITE_MAPBOX_TOKEN</code> in{" "}
           <code className="font-semibold">.env.local</code> to load the map.
         </p>
       </div>
@@ -219,7 +235,8 @@ export default function MapCanvas({
           pitch: is3D ? 48 : 0,
           bearing: -18,
         }}
-        mapStyle="mapbox://styles/mapbox/standard"
+        mapStyle={MAPBOX_STANDARD_STYLE}
+        config={standardMapConfig}
         preserveDrawingBuffer={snapshotCapture}
         antialias={!mobile}
         attributionControl={false}
