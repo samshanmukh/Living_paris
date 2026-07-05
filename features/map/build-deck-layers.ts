@@ -15,6 +15,7 @@ interface BuildDeckLayersInput {
   routeGeometry: Feature<LineString> | null;
   pulse: number;
   hiddenLayers?: Set<LayerType>;
+  routeAccentRgb?: [number, number, number];
 }
 
 function isLayerVisible(
@@ -58,10 +59,15 @@ export function buildDeckLayers({
   routeGeometry,
   pulse,
   hiddenLayers,
+  routeAccentRgb,
 }: BuildDeckLayersInput): Layer[] {
   const layers: Layer[] = [];
   const visible = new Set(mapState.visibleLayers);
-  const accent = THEME_ACCENT[mapState.theme];
+  const accent = routeAccentRgb ?? THEME_ACCENT[mapState.theme].slice(0, 3) as [
+    number,
+    number,
+    number,
+  ];
   const path = routePath(routeGeometry);
 
   if (path.length > 1) {

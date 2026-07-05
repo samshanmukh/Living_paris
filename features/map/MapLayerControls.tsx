@@ -36,8 +36,8 @@ export default function MapLayerControls({
             onClick={() => onToggle(layer)}
             className={`rounded-full px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-wide transition ${
               on
-                ? "bg-ink/88 text-cream-soft shadow-sm"
-                : "bg-cream-soft/80 text-ink-soft ring-1 ring-ink/10"
+                ? "bg-white/90 text-[#0f1117] shadow-sm"
+                : "bg-black/30 text-white/55 ring-1 ring-white/10"
             }`}
           >
             {label}

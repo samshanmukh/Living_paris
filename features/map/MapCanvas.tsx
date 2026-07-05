@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import maplibregl, { Map as MLMap, Marker } from "maplibre-gl";
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import type { Feature, LineString } from "geojson";
@@ -25,6 +25,7 @@ interface MapCanvasProps {
   mapState: MapState | null;
   routeGeometry: Feature<LineString> | null;
   hiddenLayers?: Set<LayerType>;
+  routeAccentColor?: string;
   onMarkerClick?: (id: string) => void;
 }
 
@@ -32,6 +33,7 @@ export default function MapCanvas({
   mapState,
   routeGeometry,
   hiddenLayers,
+  routeAccentColor,
   onMarkerClick,
 }: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -48,10 +50,27 @@ export default function MapCanvas({
     return () => window.clearInterval(timer);
   }, []);
 
+  const routeAccentRgb = useMemo<[number, number, number] | undefined>(() => {
+    if (!routeAccentColor) return undefined;
+    const hex = routeAccentColor.replace("#", "");
+    if (hex.length !== 6) return undefined;
+    return [
+      parseInt(hex.slice(0, 2), 16),
+      parseInt(hex.slice(2, 4), 16),
+      parseInt(hex.slice(4, 6), 16),
+    ];
+  }, [routeAccentColor]);
+
   const deckLayers = useMemo(() => {
     if (!mapState) return [];
-    return buildDeckLayers({ mapState, routeGeometry, pulse, hiddenLayers });
-  }, [mapState, routeGeometry, pulse, hiddenLayers]);
+    return buildDeckLayers({
+      mapState,
+      routeGeometry,
+      pulse,
+      hiddenLayers,
+      routeAccentRgb,
+    });
+  }, [mapState, routeGeometry, pulse, hiddenLayers, routeAccentRgb]);
 
   useEffect(() => {
     overlayRef.current?.setProps({ layers: deckLayers });
@@ -121,6 +140,10 @@ export default function MapCanvas({
 
         if (marker.highlighted) {
           el.classList.add("lp-marker-hero");
+          if (routeAccentColor) {
+            el.style.background = routeAccentColor;
+            el.style.boxShadow = `0 0 0 6px ${routeAccentColor}44`;
+          }
           const order = stopOrder.get(`${marker.coords[0]},${marker.coords[1]}`);
           if (order) el.textContent = String(order);
         }
@@ -177,7 +200,17 @@ export default function MapCanvas({
     return () => {
       cancelled = true;
     };
-  }, [mapState, onMarkerClick]);
+  }, [mapState, onMarkerClick, routeAccentColor]);
 
-  return <div ref={containerRef} className="absolute inset-0" />;
+  return (
+    <div
+      ref={containerRef}
+      className="absolute inset-0"
+      style={
+        routeAccentColor
+          ? ({ ["--lp-accent"]: routeAccentColor } as CSSProperties)
+          : undefined
+      }
+    />
+  );
 }

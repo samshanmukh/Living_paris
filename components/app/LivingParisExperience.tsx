@@ -1,44 +1,27 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { AnimatePresence, motion } from "framer-motion";
-import type { Feature, LineString } from "geojson";
-import { LanguageProvider, useLanguage } from "@/components/app/LanguageProvider";
+import { AnimatePresence } from "framer-motion";
+import { LanguageProvider } from "@/components/app/LanguageProvider";
 import { LanguageSelector } from "@/components/app/LanguageSelector";
 import ChatSheet, { type ChatMessage } from "@/features/chat/ChatSheet";
-import ExperienceCard from "@/features/experience/ExperienceCard";
+import IntentBottomSheet from "@/features/intent/IntentBottomSheet";
+import IntentMoodOverlay, { IntentHeader } from "@/features/intent/IntentMoodOverlay";
+import IntentPresetChips from "@/features/intent/IntentPresetChips";
+import IntentResponseBubble from "@/features/intent/IntentResponseBubble";
 import MapLayerControls from "@/features/map/MapLayerControls";
 import { useSpeechSynthesis } from "@/features/voice/useSpeechSynthesis";
-import { useChat } from "@/hooks/useChat";
-import { MODE_PROMPTS, OPENING_CHIP_IDS } from "@/lib/mode-prompts";
-import type { ExperienceResult, IntentQuery, LayerType, MapTheme } from "@/lib/types";
-import type { RouteResponse } from "@/services/routing/route-planner";
+import { useLivingParisIntent } from "@/hooks/useLivingParisIntent";
 
 const MapCanvas = dynamic(() => import("@/features/map/MapCanvas"), {
   ssr: false,
   loading: () => (
-    <div className="absolute inset-0 grid place-items-center bg-cream">
-      <span className="font-display text-sm text-ink-soft">Waking Paris…</span>
+    <div className="absolute inset-0 grid place-items-center bg-[#0f1117]">
+      <span className="font-display text-sm text-white/50">Waking Paris…</span>
     </div>
   ),
 });
-
-const THEME_TINT: Record<MapTheme, string> = {
-  romantic:
-    "bg-[radial-gradient(ellipse_at_50%_30%,rgba(217,164,65,0.16),rgba(196,89,58,0.10)_60%,transparent)]",
-  rain: "bg-[linear-gradient(rgba(91,122,153,0.22),rgba(55,65,92,0.14))]",
-  family: "bg-[radial-gradient(ellipse_at_50%_30%,rgba(62,107,74,0.12),transparent_70%)]",
-  night: "bg-[linear-gradient(rgba(55,65,92,0.35),rgba(43,36,28,0.25))]",
-  day: "",
-};
-
-const FOLLOWUP_CHIPS = [
-  "It's raining",
-  "We only have an hour",
-  "She's vegetarian",
-  "Make it wheelchair friendly",
-];
 
 let messageId = 0;
 const nextId = () => `m${++messageId}`;
@@ -52,161 +35,123 @@ export function LivingParisExperience() {
 }
 
 function LivingParisExperienceInner() {
-  const { t } = useLanguage();
-  const { speak, provider: ttsProvider } = useSpeechSynthesis("en-US");
-  const { sendMessage, intentSource } = useChat();
+  const { speak } = useSpeechSynthesis("en-US");
+  const {
+    currentIntent,
+    presetIntents,
+    selectedPresetId,
+    selectPreset,
+    submitFreeformIntent,
+    isGenerating,
+    livingParisResponse,
+    intentSource,
+    result,
+    routeGeometry,
+    hiddenLayers,
+    toggleLayer,
+  } = useLivingParisIntent();
 
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "welcome",
-      role: "paris",
-      text: t.messages.loading.split(".")[0] + ".",
-    },
-  ]);
-  const [thinking, setThinking] = useState(false);
-  const [result, setResult] = useState<ExperienceResult | null>(null);
-  const [route, setRoute] = useState<RouteResponse | null>(null);
-  const [routeGeometry, setRouteGeometry] = useState<Feature<LineString> | null>(null);
-  const [cardOpen, setCardOpen] = useState(true);
-  const [redrawing, setRedrawing] = useState(false);
-  const [hiddenLayers, setHiddenLayers] = useState<Set<LayerType>>(new Set());
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [sheetOpen, setSheetOpen] = useState(true);
   const [focusedStopId, setFocusedStopId] = useState<string | null>(null);
-  const intentRef = useRef<IntentQuery | undefined>(undefined);
-  const abortRef = useRef<AbortController | null>(null);
-  const redrawTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSpokenRef = useRef<string | null>(null);
 
-  const openingChips = OPENING_CHIP_IDS.map((id) => MODE_PROMPTS[id]);
-
-  const toggleLayer = useCallback((layer: LayerType) => {
-    setHiddenLayers((prev) => {
-      const next = new Set(prev);
-      if (next.has(layer)) next.delete(layer);
-      else next.add(layer);
-      return next;
+  useEffect(() => {
+    if (!livingParisResponse || livingParisResponse === lastSpokenRef.current) return;
+    lastSpokenRef.current = livingParisResponse;
+    setMessages((prev) => {
+      if (prev.some((m) => m.role === "paris" && m.text === livingParisResponse)) return prev;
+      return [...prev, { id: nextId(), role: "paris", text: livingParisResponse }];
     });
-  }, []);
+    void speak(livingParisResponse);
+  }, [livingParisResponse, speak]);
 
-  const handleMarkerClick = useCallback((markerId: string) => {
-    setCardOpen(true);
-    setFocusedStopId(markerId);
-  }, []);
-
-  const handleSend = useCallback(
+  const handleSubmit = useCallback(
     async (text: string) => {
-      abortRef.current?.abort();
-      const controller = new AbortController();
-      abortRef.current = controller;
-
       setMessages((prev) => [...prev, { id: nextId(), role: "user", text }]);
-      setThinking(true);
       setFocusedStopId(null);
-
+      setSheetOpen(true);
       try {
-        const history = messages
-          .filter((m) => m.id !== "welcome")
-          .map((m) => ({
-            role: (m.role === "user" ? "user" : "assistant") as "user" | "assistant",
-            content: m.text,
-          }));
-
-        const data = await sendMessage(text, {
-          intent: intentRef.current,
-          history,
-          context: { lat: 48.8566, lon: 2.3522 },
-          signal: controller.signal,
-        });
-
-        intentRef.current = data.intent;
-        setRedrawing(true);
-        setResult(data.result);
-        setRoute(data.route);
-        setRouteGeometry(data.route?.geometry ?? null);
-        setHiddenLayers(new Set());
-        setCardOpen(true);
-        setMessages((prev) => [
-          ...prev,
-          { id: nextId(), role: "paris", text: data.reply },
-        ]);
-        void speak(data.reply);
-
-        if (redrawTimerRef.current) clearTimeout(redrawTimerRef.current);
-        redrawTimerRef.current = setTimeout(() => setRedrawing(false), 2400);
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setResult(null);
-        setRoute(null);
-        setRouteGeometry(null);
-        setRedrawing(false);
+        await submitFreeformIntent(text);
+      } catch {
         setMessages((prev) => [
           ...prev,
           {
             id: nextId(),
             role: "paris",
-            text: t.messages.queryFailed,
+            text: "Something went wrong — try again in a moment.",
           },
         ]);
-      } finally {
-        if (abortRef.current === controller) {
-          setThinking(false);
-        }
       }
     },
-    [messages, sendMessage, speak, t.messages.queryFailed]
+    [submitFreeformIntent]
   );
 
-  const theme: MapTheme = result?.mapState.theme ?? "day";
-  const hasStarted = messages.length > 1;
+  const handlePreset = useCallback(
+    async (id: (typeof presetIntents)[number]["id"]) => {
+      const label = presetIntents.find((p) => p.id === id)?.label ?? id;
+      setMessages((prev) => [...prev, { id: nextId(), role: "user", text: label }]);
+      setFocusedStopId(null);
+      setSheetOpen(true);
+      try {
+        await selectPreset(id);
+      } catch {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: nextId(),
+            role: "paris",
+            text: "Something went wrong — try again in a moment.",
+          },
+        ]);
+      }
+    },
+    [presetIntents, selectPreset]
+  );
+
+  const hasStarted =
+    selectedPresetId != null || messages.length > 0 || currentIntent.id !== "idle";
 
   return (
-    <main className="relative h-dvh w-full overflow-hidden bg-cream">
+    <main className="lp-dark relative h-dvh w-full overflow-hidden bg-[#0f1117]">
       <MapCanvas
         mapState={result?.mapState ?? null}
         routeGeometry={routeGeometry}
         hiddenLayers={hiddenLayers}
-        onMarkerClick={handleMarkerClick}
+        routeAccentColor={currentIntent.accentColor}
+        onMarkerClick={(id) => {
+          setSheetOpen(true);
+          setFocusedStopId(id);
+        }}
       />
 
       <AnimatePresence>
-        {theme !== "day" && (
-          <motion.div
-            key={theme}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1.4 }}
-            className={`pointer-events-none absolute inset-0 ${THEME_TINT[theme]}`}
-          />
-        )}
+        <IntentMoodOverlay intent={currentIntent} />
       </AnimatePresence>
 
-      <div className="pointer-events-none absolute inset-0 shadow-[inset_0_0_120px_40px_rgba(43,36,28,0.10)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.04),transparent_45%)]" />
+      <div className="pointer-events-none absolute inset-0 shadow-[inset_0_0_140px_50px_rgba(0,0,0,0.55)]" />
 
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col items-center gap-2 px-4 pt-[max(0.9rem,env(safe-area-inset-top))]">
-        <motion.div
-          initial={{ opacity: 0, y: -16 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="pointer-events-auto flex w-full max-w-md items-center justify-between gap-2 rounded-full bg-cream-soft/92 px-4 py-2 shadow-[var(--pill-shadow)] backdrop-blur-md sm:max-w-lg"
-        >
-          <div className="flex items-center gap-2">
-            <span className="grid h-5 w-5 place-items-center rounded-full bg-terracotta text-[10px] font-bold text-cream-soft">
+        <div className="pointer-events-auto flex w-full max-w-md items-center justify-between gap-2 sm:max-w-lg">
+          <div className="lp-glass flex flex-1 items-center rounded-full border border-white/10 px-3 py-2">
+            <span className="mr-2 grid h-5 w-5 place-items-center rounded-full bg-white/10 text-[10px] font-bold text-[#f5f0e8]">
               P
             </span>
-            <span className="font-display text-[14px] font-semibold tracking-tight text-ink">
-              {t.brand.eyebrow}
+            <span className="font-display text-[14px] font-semibold tracking-tight text-[#f5f0e8]">
+              Living Paris
             </span>
-            {intentSource && hasStarted && (
-              <span className="rounded-full bg-ink/8 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-soft">
-                {intentSource === "llm" ? "Grok" : "local"}
-              </span>
-            )}
-            {ttsProvider === "grok" && (
-              <span className="rounded-full bg-terracotta/15 px-2 py-0.5 text-[10px] font-semibold text-terracotta">
-                voice
-              </span>
-            )}
           </div>
           <LanguageSelector />
-        </motion.div>
+        </div>
+
+        {hasStarted && (
+          <IntentHeader
+            intent={currentIntent}
+            isGenerating={isGenerating}
+            intentSource={intentSource}
+          />
+        )}
 
         {result?.mapState.visibleLayers && (
           <MapLayerControls
@@ -215,41 +160,35 @@ function LivingParisExperienceInner() {
             onToggle={toggleLayer}
           />
         )}
-
-        <AnimatePresence>
-          {redrawing && (
-            <motion.div
-              initial={{ opacity: 0, y: -8, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -8, scale: 0.95 }}
-              className="flex items-center gap-2 rounded-full bg-ink/85 px-3.5 py-1.5 backdrop-blur-sm"
-            >
-              <motion.span
-                className="h-1.5 w-1.5 rounded-full bg-gold"
-                animate={{ scale: [1, 1.5, 1] }}
-                transition={{ duration: 0.9, repeat: Infinity }}
-              />
-              <span className="text-[11.5px] font-medium text-cream-soft">
-                Paris is redrawing your view
-              </span>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
 
       <div className="absolute inset-x-0 bottom-0 z-10 mx-auto flex w-full max-w-md flex-col justify-end sm:max-w-lg">
-        <ExperienceCard
-          result={result}
-          route={route}
-          open={cardOpen}
-          focusedStopId={focusedStopId}
-          onToggle={() => setCardOpen((value) => !value)}
+        <IntentResponseBubble
+          response={livingParisResponse}
+          accentColor={currentIntent.accentColor}
         />
+
+        {(hasStarted || currentIntent.stops.length > 0) && (
+          <IntentBottomSheet
+            intent={currentIntent}
+            open={sheetOpen}
+            isGenerating={isGenerating}
+            focusedStopId={focusedStopId}
+            onToggle={() => setSheetOpen((value) => !value)}
+          />
+        )}
+
+        <IntentPresetChips
+          presets={presetIntents}
+          selectedId={selectedPresetId}
+          disabled={isGenerating}
+          onSelect={(id) => void handlePreset(id)}
+        />
+
         <ChatSheet
           messages={messages}
-          chips={hasStarted ? FOLLOWUP_CHIPS : openingChips}
-          thinking={thinking}
-          onSend={(text) => void handleSend(text)}
+          thinking={isGenerating}
+          onSend={(text) => void handleSubmit(text)}
         />
       </div>
     </main>
