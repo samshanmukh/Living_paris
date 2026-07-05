@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import maplibregl, { Map as MLMap, Marker } from "maplibre-gl";
+import { MapboxOverlay } from "@deck.gl/mapbox";
 import type { Feature, LineString } from "geojson";
+import { CONTEXT_OVERLAY_LAYERS } from "@/lib/map-layer-styles";
 import type { MapState } from "@/lib/types";
+import { buildDeckLayers } from "./build-deck-layers";
 
 /**
  * Free vector basemap (CARTO Positron) — no API token required.
- * Member 2 (Maps) can swap this for a custom Mapbox style later; the
- * component contract (mapState in, rendered city out) stays the same.
+ * deck.gl overlay adds route glow, 3D plinths, and ambient heatmaps.
  */
 const BASEMAP_STYLE =
   "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
@@ -49,8 +51,26 @@ export default function MapCanvas({
 }: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MLMap | null>(null);
+  const overlayRef = useRef<MapboxOverlay | null>(null);
   const markersRef = useRef<Marker[]>([]);
   const loadedRef = useRef(false);
+  const [pulse, setPulse] = useState(0);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setPulse((value) => (value + 1) % 120);
+    }, 70);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const deckLayers = useMemo(() => {
+    if (!mapState) return [];
+    return buildDeckLayers({ mapState, routeGeometry, pulse });
+  }, [mapState, routeGeometry, pulse]);
+
+  useEffect(() => {
+    overlayRef.current?.setProps({ layers: deckLayers });
+  }, [deckLayers]);
 
   // Init map once.
   useEffect(() => {
@@ -65,6 +85,10 @@ export default function MapCanvas({
       bearing: -12,
       attributionControl: { compact: true },
     });
+
+    const overlay = new MapboxOverlay({ interleaved: true, layers: [] });
+    overlayRef.current = overlay;
+    map.addControl(overlay as unknown as maplibregl.IControl);
 
     map.on("load", () => {
       loadedRef.current = true;
@@ -100,8 +124,10 @@ export default function MapCanvas({
     mapRef.current = map;
     return () => {
       markersRef.current.forEach((m) => m.remove());
+      overlay.finalize();
       map.remove();
       mapRef.current = null;
+      overlayRef.current = null;
       loadedRef.current = false;
     };
   }, []);
@@ -123,7 +149,11 @@ export default function MapCanvas({
         mapState.routeWaypoints.map((w, i) => [`${w.lon},${w.lat}`, i + 1])
       );
 
-      mapState.markers.forEach((marker, idx) => {
+      const domMarkers = mapState.markers.filter(
+        (marker) => !CONTEXT_OVERLAY_LAYERS.includes(marker.layer)
+      );
+
+      domMarkers.forEach((marker, idx) => {
         const el = document.createElement("div");
         el.className = "lp-marker";
         el.dataset.layer = marker.layer;
@@ -155,7 +185,6 @@ export default function MapCanvas({
         markersRef.current.push(m);
       });
 
-      // Camera: fit itinerary stops when there are 2+, otherwise flyTo.
       const heroCoords = mapState.markers
         .filter((m) => m.highlighted)
         .map((m) => m.coords);

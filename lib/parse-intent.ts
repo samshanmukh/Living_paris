@@ -1,4 +1,4 @@
-import type { IntentQuery, MoodType } from "./types";
+import type { IntentQuery, LayerType, MoodType } from "./types";
 
 /**
  * Heuristic natural-language → intent parser.
@@ -96,6 +96,10 @@ export function parseMessage(message: string): Partial<IntentQuery> {
   const dietary = DIETARY_PATTERNS.filter(([p]) => p.test(message)).map(([, d]) => d);
   if (dietary.length) patch.dietary = dietary;
 
+  if (/bike|vélib|velib|cycl(?:e|ing)|bicycle/i.test(message)) {
+    patch.layers = [...new Set<LayerType>([...(patch.layers ?? []), "bikes"])];
+  }
+
   return patch;
 }
 
@@ -109,6 +113,10 @@ export function mergeIntent(
   // Combine dietary lists across turns instead of overwriting.
   if (previous?.dietary?.length && patch.dietary?.length) {
     merged.dietary = [...new Set([...previous.dietary, ...patch.dietary])];
+  }
+
+  if (previous?.layers?.length && patch.layers?.length) {
+    merged.layers = [...new Set([...previous.layers, ...patch.layers])];
   }
 
   return merged;

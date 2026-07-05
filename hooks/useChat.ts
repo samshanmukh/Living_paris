@@ -9,18 +9,24 @@ export interface UseChatState {
   loading: boolean;
   error: string | null;
   lastResponse: IntegratedChatResponse | null;
+  intentSource: IntegratedChatResponse["intentSource"] | null;
 }
+
+export type SendMessageOptions = Omit<ChatRequest, "message"> & {
+  intent?: IntentQuery;
+  signal?: AbortSignal;
+};
 
 export function useChat() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastResponse, setLastResponse] = useState<IntegratedChatResponse | null>(null);
+  const [intentSource, setIntentSource] =
+    useState<IntegratedChatResponse["intentSource"] | null>(null);
 
   const sendMessage = useCallback(
-    async (
-      message: string,
-      options?: Omit<ChatRequest, "message"> & { intent?: IntentQuery }
-    ) => {
+    async (message: string, options?: SendMessageOptions) => {
+      const { signal, ...payload } = options ?? {};
       setLoading(true);
       setError(null);
 
@@ -28,7 +34,8 @@ export function useChat() {
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message, ...options }),
+          body: JSON.stringify({ message, ...payload }),
+          signal,
         });
 
         const data = (await res.json()) as IntegratedChatResponse & {
@@ -44,14 +51,24 @@ export function useChat() {
           throw new Error("Chat response missing reply or result.mapState");
         }
 
+        if (signal?.aborted) {
+          throw new DOMException("Aborted", "AbortError");
+        }
+
         setLastResponse(data);
+        setIntentSource(data.intentSource);
         return data;
       } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          throw err;
+        }
         const msg = err instanceof Error ? err.message : "Chat request failed";
         setError(msg);
         throw err;
       } finally {
-        setLoading(false);
+        if (!signal?.aborted) {
+          setLoading(false);
+        }
       }
     },
     []
@@ -60,7 +77,8 @@ export function useChat() {
   const reset = useCallback(() => {
     setError(null);
     setLastResponse(null);
+    setIntentSource(null);
   }, []);
 
-  return { sendMessage, loading, error, lastResponse, reset };
+  return { sendMessage, loading, error, lastResponse, intentSource, reset };
 }
