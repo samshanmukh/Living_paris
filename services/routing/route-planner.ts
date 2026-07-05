@@ -87,6 +87,14 @@ function buildCameraPath(coordinates: Position[]): Position[] {
   return cameraPath;
 }
 
+/** Mapbox Directions returns a LineString; normalize to GeoJSON Feature. */
+function asLineFeature(geometry: LineString | Feature<LineString>): Feature<LineString> {
+  if (geometry.type === "Feature") {
+    return geometry;
+  }
+  return { type: "Feature", properties: {}, geometry };
+}
+
 async function fetchMapboxRoute(
   waypoints: RouteWaypoint[],
   profile: "walking" | "cycling",
@@ -103,25 +111,33 @@ async function fetchMapboxRoute(
   const res = await fetch(url);
   if (!res.ok) return null;
 
-  const data = (await res.json()) as {
-    routes?: { distance: number; duration: number; geometry: Feature<LineString> }[];
-  };
-  const route = data.routes?.[0];
-  if (!route) return null;
+  try {
+    const data = (await res.json()) as {
+      routes?: {
+        distance: number;
+        duration: number;
+        geometry: LineString | Feature<LineString>;
+      }[];
+    };
+    const route = data.routes?.[0];
+    if (!route) return null;
 
-  const geometry = route.geometry as Feature<LineString>;
-  const legs = buildLegs(waypoints, profile);
+    const geometry = asLineFeature(route.geometry);
+    const legs = buildLegs(waypoints, profile);
 
-  return {
-    profile,
-    provider: "mapbox",
-    geometry,
-    distanceMeters: Math.round(route.distance),
-    durationMinutes: Math.round((route.duration / 60) * 10) / 10,
-    legs,
-    cameraPath: buildCameraPath(geometry.geometry.coordinates),
-    accessible: profile === "walking",
-  };
+    return {
+      profile,
+      provider: "mapbox",
+      geometry,
+      distanceMeters: Math.round(route.distance),
+      durationMinutes: Math.round((route.duration / 60) * 10) / 10,
+      legs,
+      cameraPath: buildCameraPath(geometry.geometry.coordinates),
+      accessible: profile === "walking",
+    };
+  } catch {
+    return null;
+  }
 }
 
 export interface RoutePlannerEnv {
