@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { LanguageProvider } from "@/components/app/LanguageProvider";
 import { LanguageSelector } from "@/components/app/LanguageSelector";
 import UiDevToolbar from "@/features/dev/UiDevToolbar";
@@ -180,12 +180,13 @@ function LivingParisExperienceInner() {
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col items-center gap-2 px-4 pt-[max(0.9rem,env(safe-area-inset-top))]">
         <div className="pointer-events-auto flex w-full max-w-md items-center justify-between gap-2 sm:max-w-lg">
           <div className="lp-glass flex flex-1 items-center rounded-full border border-[#e5dbc9] px-3 py-2">
-            <span
+            <motion.span
               className="mr-2 grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold text-white"
-              style={{ backgroundColor: currentIntent.accentColor }}
+              animate={{ backgroundColor: currentIntent.accentColor }}
+              transition={{ duration: 0.55, ease: "easeInOut" }}
             >
               P
-            </span>
+            </motion.span>
             <span className="font-display text-[14px] font-semibold tracking-tight text-[#2b241c]">
               Living Paris
             </span>
@@ -214,6 +215,7 @@ function LivingParisExperienceInner() {
         <IntentResponseBubble
           response={livingParisResponse}
           accentColor={currentIntent.accentColor}
+          revealDelay={0.45}
         />
       </div>
 

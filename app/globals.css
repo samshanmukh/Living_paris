@@ -114,6 +114,12 @@ body {
   box-shadow: 0 12px 40px -14px rgba(94, 76, 56, 0.28);
 }
 
+.lp-drawer-accent {
+  transition:
+    box-shadow 0.55s ease,
+    border-color 0.55s ease;
+}
+
 @keyframes lp-marker-in {
   from {
     opacity: 0;
