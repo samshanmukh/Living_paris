@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 import { useChat } from "@/hooks/useChat";
 import { useSpeechRecognition } from "./useSpeechRecognition";
 import { useSpeechSynthesis } from "./useSpeechSynthesis";
@@ -23,8 +23,16 @@ const STATUS_STYLE: Record<StepStatus, string> = {
   skip: "text-zinc-400",
 };
 
+function useIsClient() {
+  return useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
+}
+
 export function VoicePipelineDemo() {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useIsClient();
   const [trace, setTrace] = useState<TraceEntry[]>([]);
   const [autoSpeak, setAutoSpeak] = useState(true);
   const [typedMessage, setTypedMessage] = useState(
@@ -36,10 +44,6 @@ export function VoicePipelineDemo() {
     useChat();
   const { speak, speaking, supported: ttsSupported, cancel: cancelSpeak } =
     useSpeechSynthesis();
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const pushTrace = useCallback(
     (step: string, status: StepStatus, message: string) => {
@@ -88,21 +92,21 @@ export function VoicePipelineDemo() {
       try {
         const data = await sendMessage(trimmed);
 
-        updateTrace(chatTraceId, "ok", "200 OK");
-        pushTrace("3. Intent (Grok)", "ok", JSON.stringify(data.intent, null, 0));
+        updateTrace(chatTraceId, "ok", `200 OK (${data.intentSource})`);
+        pushTrace("3. Intent", "ok", JSON.stringify(data.intent, null, 0));
         pushTrace(
-          "4. MapState",
+          "4. Experience + mapState",
           "ok",
-          `theme=${data.mapState.theme}, center=[${data.mapState.center.join(", ")}], features=${data.mapState.highlights.features.length}, layers=${data.mapState.activeLayers.join(",")}`
+          `${data.result.experience.emoji} ${data.result.experience.name} · theme=${data.result.mapState.theme} · markers=${data.result.mapState.markers.length} · stops=${data.result.itinerary.stops.length}`
         );
-        pushTrace("5. Assistant message", "ok", data.message);
+        pushTrace("5. Assistant reply", "ok", data.reply);
 
         if (autoSpeak) {
           if (!ttsSupported) {
             pushTrace("6. TTS", "skip", "Speech synthesis not supported in this browser.");
           } else {
             const ttsId = pushTrace("6. TTS", "running", "Reading reply aloud…");
-            const started = speak(data.message);
+            const started = speak(data.reply);
             updateTrace(
               ttsId,
               started ? "ok" : "error",
@@ -127,20 +131,20 @@ export function VoicePipelineDemo() {
     [runPipeline]
   );
 
+  const onSpeechError = useCallback(
+    (message: string) => {
+      pushTrace("1. Speech (STT)", "error", message);
+    },
+    [pushTrace]
+  );
+
   const {
     supported: sttSupported,
     listening,
     transcript,
-    error: sttError,
     start,
     stop,
-  } = useSpeechRecognition({ onFinalTranscript });
-
-  useEffect(() => {
-    if (sttError) {
-      pushTrace("1. Speech (STT)", "error", sttError);
-    }
-  }, [sttError, pushTrace]);
+  } = useSpeechRecognition({ onFinalTranscript, onError: onSpeechError });
 
   const clearAll = () => {
     stop();
@@ -281,26 +285,28 @@ export function VoicePipelineDemo() {
       {lastResponse && (
         <section className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
           <h2 className="mb-2 text-sm font-semibold text-zinc-800">Last response</h2>
-          <p className="text-sm text-zinc-800">{lastResponse.message}</p>
+          <p className="text-sm text-zinc-800">{lastResponse.reply}</p>
           <pre className="mt-3 max-h-40 overflow-auto rounded bg-zinc-100 p-2 text-xs text-zinc-700">
             {JSON.stringify(
               {
+                intentSource: lastResponse.intentSource,
                 intent: lastResponse.intent,
+                experience: lastResponse.result.experience,
                 mapState: {
-                  center: lastResponse.mapState.center,
-                  theme: lastResponse.mapState.theme,
-                  features: lastResponse.mapState.highlights.features.length,
-                  activeLayers: lastResponse.mapState.activeLayers,
+                  theme: lastResponse.result.mapState.theme,
+                  markers: lastResponse.result.mapState.markers.length,
+                  visibleLayers: lastResponse.result.mapState.visibleLayers,
+                  stops: lastResponse.result.itinerary.stops.length,
                 },
               },
               null,
               2
             )}
           </pre>
-          {ttsSupported && lastResponse.message && (
+          {ttsSupported && lastResponse.reply && (
             <button
               type="button"
-              onClick={() => speak(lastResponse.message)}
+              onClick={() => speak(lastResponse.reply)}
               className="mt-3 rounded border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-50"
             >
               🔊 Replay message
