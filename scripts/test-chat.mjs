@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Smoke test for POST /api/chat (Agent 3).
+ * Smoke test for POST /api/chat (integrated pipeline).
  * Usage: node scripts/test-chat.mjs "Plan a romantic evening under 60 euros"
- * Requires: npm run dev + npm run dev:api running, OPENROUTER_API_KEY in .env.local
+ * Requires: npm run dev running, OPENROUTER_API_KEY in .env.local for LLM path
  */
 import { loadEnvLocal } from "./load-env-local.mjs";
 
@@ -24,21 +24,22 @@ if (!res.ok) {
   process.exit(1);
 }
 
-for (const key of ["message", "intent", "mapState"]) {
+for (const key of ["reply", "intent", "result", "intentSource"]) {
   if (!(key in data)) {
     console.error(`FAIL: missing response key "${key}"`);
     process.exit(1);
   }
 }
 
-console.log("message:", data.message);
+console.log("reply:", data.reply);
+console.log("intentSource:", data.intentSource);
 console.log("intent:", JSON.stringify(data.intent));
 console.log(
-  "mapState:",
-  JSON.stringify({
-    center: data.mapState.center,
-    theme: data.mapState.theme,
-    features: data.mapState.highlights?.features?.length ?? 0,
-  })
+  "experience:",
+  data.result.experience.name,
+  "· markers:",
+  data.result.mapState.markers.length,
+  "· stops:",
+  data.result.itinerary.stops.length
 );
 console.log("OK: /api/chat");

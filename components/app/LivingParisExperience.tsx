@@ -10,8 +10,8 @@ import ChatSheet, { type ChatMessage } from "@/features/chat/ChatSheet";
 import ExperienceCard from "@/features/experience/ExperienceCard";
 import { useSpeechSynthesis } from "@/features/voice/useSpeechSynthesis";
 import { MODE_PROMPTS, OPENING_CHIP_IDS } from "@/lib/mode-prompts";
+import type { IntegratedChatResponse } from "@/lib/integrated-chat-types";
 import type { ExperienceResult, IntentQuery, MapTheme } from "@/lib/types";
-import type { RouteResponse } from "@/services/routing/route-planner";
 
 const MapCanvas = dynamic(() => import("@/features/map/MapCanvas"), {
   ssr: false,
@@ -21,14 +21,6 @@ const MapCanvas = dynamic(() => import("@/features/map/MapCanvas"), {
     </div>
   ),
 });
-
-interface IntegratedChatResponse {
-  reply: string;
-  intent: IntentQuery;
-  result: ExperienceResult;
-  route: RouteResponse | null;
-  intentSource: "llm" | "heuristic";
-}
 
 const THEME_TINT: Record<MapTheme, string> = {
   romantic:

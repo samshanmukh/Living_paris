@@ -1,6 +1,7 @@
 import { chatRequestSchema, type ChatMessage } from "@/lib/chat-types";
 import { intentSchema } from "@/lib/intent-schema";
 import { mergeIntent, parseMessage } from "@/lib/parse-intent";
+import type { IntegratedChatResponse } from "@/lib/integrated-chat-types";
 import type { ExperienceResult, IntentQuery } from "@/lib/types";
 import { extractIntent } from "@/services/ai/intent-extractor";
 import { runExperience } from "@/services/experience/engine";
@@ -8,13 +9,9 @@ import { planRoute, type RouteResponse } from "@/services/routing/route-planner"
 
 export type IntentSource = "llm" | "heuristic";
 
-export interface IntegratedChatResult {
-  reply: string;
-  intent: IntentQuery;
-  result: ExperienceResult;
-  route: RouteResponse | null;
-  intentSource: IntentSource;
-}
+export type { IntegratedChatResponse };
+
+export type IntegratedChatResult = IntegratedChatResponse;
 
 const integratedChatSchema = chatRequestSchema.extend({
   intent: intentSchema.optional(),

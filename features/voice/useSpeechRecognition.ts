@@ -55,10 +55,11 @@ function getSpeechRecognition(): SpeechRecognitionCtor | null {
 export interface UseSpeechRecognitionOptions {
   lang?: string;
   onFinalTranscript?: (text: string) => void;
+  onError?: (message: string) => void;
 }
 
 export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}) {
-  const { lang = "en-US", onFinalTranscript } = options;
+  const { lang = "en-US", onFinalTranscript, onError } = options;
   const [supported] = useState(() => getSpeechRecognition() != null);
   const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState("");
@@ -73,7 +74,9 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}) 
   const start = useCallback(() => {
     const Ctor = getSpeechRecognition();
     if (!Ctor) {
-      setError("Speech recognition is not supported in this browser.");
+      const message = "Speech recognition is not supported in this browser.";
+      setError(message);
+      onError?.(message);
       return;
     }
 
@@ -99,11 +102,12 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}) 
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       if (isBenignRecognitionError(event.error)) return;
-      setError(
+      const message =
         event.error === "not-allowed"
           ? "Microphone permission denied."
-          : "Could not capture speech. Try typing instead."
-      );
+          : "Could not capture speech. Try typing instead.";
+      setError(message);
+      onError?.(message);
       setListening(false);
     };
 
@@ -112,7 +116,7 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}) 
     recognitionRef.current = recognition;
     recognition.start();
     setListening(true);
-  }, [lang, onFinalTranscript]);
+  }, [lang, onFinalTranscript, onError]);
 
   return { supported, listening, transcript, error, start, stop };
 }
