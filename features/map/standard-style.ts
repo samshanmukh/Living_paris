@@ -34,11 +34,37 @@ export function getStandardMapConfig(theme?: MapTheme | null) {
   };
 }
 
-export function applyStandardBasemap(map: MapboxMap, theme?: MapTheme | null) {
-  const preset = themeToLightPreset(theme);
+export function resolveLightPreset(
+  theme?: MapTheme | null,
+  weatherPreset?: StandardLightPreset
+): StandardLightPreset {
+  if (theme) return themeToLightPreset(theme);
+  return weatherPreset ?? "dusk";
+}
+
+/** Apply Mapbox Standard basemap config — 3D objects, labels, lighting. */
+export function applyStandardMapConfig(
+  map: MapboxMap,
+  options?: { theme?: MapTheme | null; lightPreset?: StandardLightPreset }
+) {
+  const config = getStandardMapConfig(options?.theme);
+  const preset = resolveLightPreset(options?.theme, options?.lightPreset);
+
   try {
     map.setConfigProperty("basemap", "lightPreset", preset);
+    map.setConfigProperty("basemap", "show3dObjects", config.basemap.show3dObjects);
+    map.setConfigProperty("basemap", "showPlaceLabels", config.basemap.showPlaceLabels);
+    map.setConfigProperty(
+      "basemap",
+      "showPointOfInterestLabels",
+      config.basemap.showPointOfInterestLabels
+    );
+    map.setConfigProperty("basemap", "showRoadLabels", config.basemap.showRoadLabels);
   } catch {
     // Style may not be Standard yet — ignore.
   }
+}
+
+export function applyStandardBasemap(map: MapboxMap, theme?: MapTheme | null) {
+  applyStandardMapConfig(map, { theme });
 }
