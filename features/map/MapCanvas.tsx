@@ -29,6 +29,7 @@ import { isMobileViewport, prefersReducedMotion } from "@/lib/map-performance";
 import { cn } from "@/lib/utils";
 import type { LayerType, MapState } from "@/lib/types";
 import { buildDeckLayers } from "./build-deck-layers";
+import { LivingParisOverlay } from "./overlay";
 import {
   applyStandardBasemap,
   getStandardMapConfig,
@@ -79,7 +80,8 @@ type MarkerProps = {
 
 type MarkerComponent = ComponentType<MarkerProps>;
 
-function MapMarkerLayer({
+/** Classic pins when Mapbox token is unavailable (MapLibre fallback). */
+function LegacyMarkerLayer({
   Marker,
   DeckOverlay,
   deckLayers,
@@ -152,6 +154,34 @@ function MapMarkerLayer({
   );
 }
 
+function IllustratedMapLayer({
+  DeckOverlay,
+  deckLayers,
+  mapState,
+  routeGeometry,
+  routeAccentColor,
+  onMarkerClick,
+}: {
+  DeckOverlay: typeof DeckGLOverlayMapbox;
+  deckLayers: Layer[];
+  mapState: MapState | null;
+  routeGeometry: Feature<LineString> | null;
+  routeAccentColor?: string;
+  onMarkerClick?: (id: string) => void;
+}) {
+  return (
+    <>
+      {deckLayers.length > 0 ? <DeckOverlay layers={deckLayers} /> : null}
+      <LivingParisOverlay
+        mapState={mapState}
+        routeGeometry={routeGeometry}
+        routeAccentColor={routeAccentColor}
+        onMarkerClick={onMarkerClick}
+      />
+    </>
+  );
+}
+
 function routeNeedsPulse(
   mapState: MapState | null,
   routeGeometry: Feature<LineString> | null
@@ -215,7 +245,7 @@ export default function MapCanvas({
       hiddenLayers,
       routeAccentRgb,
       animate: animateDeck && !prefersReducedMotion(),
-    });
+    }).filter((layer) => layer.id !== "lp-route-glow" && layer.id !== "lp-route-core");
   }, [mapState, routeGeometry, pulse, hiddenLayers, routeAccentRgb, animateDeck]);
 
   const handleMapboxLoad = useCallback(() => {
@@ -297,7 +327,7 @@ export default function MapCanvas({
 
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [mapLoaded, mapState, mobile]);
+  }, [mapLoaded, mapState, mobile, mapRef]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -331,7 +361,7 @@ export default function MapCanvas({
         essential: true,
       });
     }
-  }, [mapState, mapLoaded]);
+  }, [mapState, mapLoaded, mapRef]);
 
   const stopOrder = useMemo(() => {
     if (!mapState) return new Map<string, number>();
@@ -357,7 +387,7 @@ export default function MapCanvas({
 
   const firstStop = mapState?.routeWaypoints[0];
 
-  const markerLayerProps = {
+  const legacyMarkerProps = {
     deckLayers,
     domMarkers,
     stopOrder,
@@ -406,10 +436,10 @@ export default function MapCanvas({
     >
       {useMapLibre ? (
         <MapLibreGL ref={maplibreRef} mapStyle={CARTO_STYLE} {...maplibreView}>
-          <MapMarkerLayer
+          <LegacyMarkerLayer
             Marker={MapLibreMarker}
             DeckOverlay={DeckGLOverlayMapLibre}
-            {...markerLayerProps}
+            {...legacyMarkerProps}
           />
         </MapLibreGL>
       ) : (
@@ -419,10 +449,13 @@ export default function MapCanvas({
           mapStyle={MAPBOX_STANDARD_STYLE}
           {...mapboxView}
         >
-          <MapMarkerLayer
-            Marker={MapboxMarker}
+          <IllustratedMapLayer
             DeckOverlay={DeckGLOverlayMapbox}
-            {...markerLayerProps}
+            deckLayers={deckLayers}
+            mapState={mapState}
+            routeGeometry={routeGeometry}
+            routeAccentColor={routeAccentColor}
+            onMarkerClick={onMarkerClick}
           />
         </MapGL>
       )}
