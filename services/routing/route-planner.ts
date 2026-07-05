@@ -104,12 +104,12 @@ async function fetchMapboxRoute(
   if (!res.ok) return null;
 
   const data = (await res.json()) as {
-    routes?: { distance: number; duration: number; geometry: Feature<LineString> }[];
+    routes?: { distance: number; duration: number; geometry?: LineString }[];
   };
   const route = data.routes?.[0];
-  if (!route) return null;
+  if (!route?.geometry?.coordinates?.length) return null;
 
-  const geometry = route.geometry as Feature<LineString>;
+  const geometry: Feature<LineString> = turf.lineString(route.geometry.coordinates);
   const legs = buildLegs(waypoints, profile);
 
   return {

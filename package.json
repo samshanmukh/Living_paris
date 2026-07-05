@@ -13,7 +13,7 @@
     "upload-data:remote": "node scripts/upload-r2-data.mjs --remote",
     "deploy:api": "wrangler deploy --env=\"\"",
     "deploy:api:production": "wrangler deploy --env production",
-    "test:api": "tsx --test tests/spatial-query.test.ts"
+    "test:api": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
     "@deck.gl/core": "^9.3.6",
