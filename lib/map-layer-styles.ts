@@ -16,6 +16,9 @@ export const CONTEXT_OVERLAY_LAYERS: LayerType[] = [
   "bikes",
   "noise",
   "air-quality",
+  "lighting",
+  "halal",
+  "metro-accessibility",
 ];
 
 export const CONTEXT_OVERLAY_BY_EXPERIENCE: Partial<
@@ -27,9 +30,9 @@ export const CONTEXT_OVERLAY_BY_EXPERIENCE: Partial<
   "family-day": ["air-quality"],
   "photo-walk": ["air-quality"],
   "local-explorer": ["bikes"],
-  "food-tour": ["bikes"],
+  "food-tour": ["bikes", "halal"],
   "rainy-day": ["noise"],
-  "nightlife": ["noise"],
+  "nightlife": ["noise", "lighting"],
   "museums-art": ["air-quality"],
 };
 
@@ -41,6 +44,12 @@ export function layerAccent(layer: LayerType, theme: MapTheme): Rgba {
       return [255, 106, 169, 220];
     case "air-quality":
       return [130, 215, 255, 220];
+    case "lighting":
+      return [255, 193, 70, 220];
+    case "halal":
+      return [45, 180, 140, 220];
+    case "metro-accessibility":
+      return [110, 120, 230, 210];
     case "metro":
       return [170, 140, 255, 210];
     case "trees":

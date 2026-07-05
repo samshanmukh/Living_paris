@@ -1,17 +1,22 @@
 import type { Map as MapboxMap } from "mapbox-gl";
+import type { Map as MapLibreMap } from "maplibre-gl";
+
+type StylableMap = MapboxMap | MapLibreMap;
+
+export type { StylableMap };
 
 /**
  * Recolors the Mapbox light basemap into a warm "miniature city" look:
  * cream ground, pastel parks, powder water, soft warm roads.
  */
-export function applyToyCityStyle(map: MapboxMap) {
+export function applyToyCityStyle(map: StylableMap) {
   const style = map.getStyle();
   if (!style?.layers) return;
 
   const set = (id: string, prop: string, value: unknown) => {
     try {
       if (map.getLayer(id)) {
-        map.setPaintProperty(id, prop as Parameters<typeof map.setPaintProperty>[1], value as never);
+        map.setPaintProperty(id, prop as never, value as never);
       }
     } catch {
       // Property may not exist on this layer type — skip.
@@ -79,7 +84,7 @@ export function applyToyCityStyle(map: MapboxMap) {
 }
 
 /** Warm terracotta-roofed 3D buildings — the miniature diorama look. */
-export function addToyBuildings(map: MapboxMap, options?: { lite?: boolean }) {
+export function addToyBuildings(map: StylableMap, options?: { lite?: boolean }) {
   if (map.getLayer("lp-buildings")) return;
 
   const style = map.getStyle();

@@ -1,72 +1,11 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { buildHalal } from "./fetch/build-halal.mjs";
+import { buildLighting } from "./fetch/build-lighting.mjs";
+import { buildMetroAccessibility } from "./fetch/build-metro-accessibility.mjs";
+import { fetchAll, fetchAllIdfm, isInParis, pointFeature } from "./fetch/shared.mjs";
 
 const DATA_DIR = path.join(process.cwd(), "public", "data");
-const PARIS_API = "https://opendata.paris.fr/api/explore/v2.1/catalog/datasets";
-const IDFM_API =
-  "https://data.iledefrance-mobilites.fr/api/explore/v2.1/catalog/datasets";
-
-const PARIS_BOUNDS = {
-  minLon: 2.249,
-  maxLon: 2.421,
-  minLat: 48.815,
-  maxLat: 48.902,
-};
-
-async function fetchRecordsFrom(baseUrl, datasetId, { limit = 100, offset = 0, where } = {}) {
-  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
-  if (where) params.set("where", where);
-
-  const url = `${baseUrl}/${datasetId}/records?${params}`;
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!res.ok) throw new Error(`Failed ${datasetId}: ${res.status}`);
-  return res.json();
-}
-
-async function fetchRecords(datasetId, opts) {
-  return fetchRecordsFrom(PARIS_API, datasetId, opts);
-}
-
-async function fetchIdfmRecords(datasetId, opts) {
-  return fetchRecordsFrom(IDFM_API, datasetId, opts);
-}
-
-async function fetchAllFrom(fetchFn, datasetId, { pageSize = 100, maxRecords = 2000, where } = {}) {
-  const all = [];
-  let offset = 0;
-  let total = Infinity;
-
-  while (offset < total && all.length < maxRecords) {
-    const batch = await fetchFn(datasetId, {
-      limit: Math.min(pageSize, maxRecords - all.length),
-      offset,
-      where,
-    });
-    total = batch.total_count ?? 0;
-    all.push(...(batch.results ?? []));
-    offset += pageSize;
-    if (!batch.results?.length) break;
-  }
-
-  return all;
-}
-
-async function fetchAll(datasetId, opts) {
-  return fetchAllFrom(fetchRecords, datasetId, opts);
-}
-
-async function fetchAllIdfm(datasetId, opts) {
-  return fetchAllFrom(fetchIdfmRecords, datasetId, opts);
-}
-
-function isInParis(lon, lat) {
-  return (
-    lon >= PARIS_BOUNDS.minLon &&
-    lon <= PARIS_BOUNDS.maxLon &&
-    lat >= PARIS_BOUNDS.minLat &&
-    lat <= PARIS_BOUNDS.maxLat
-  );
-}
 
 function parseAccessibilityField(raw) {
   if (!raw) return false;
@@ -89,14 +28,6 @@ function writeGeoJSON(filename, collection) {
     JSON.stringify(collection, null, 0),
     "utf8"
   );
-}
-
-function pointFeature(id, lon, lat, properties) {
-  return {
-    type: "Feature",
-    geometry: { type: "Point", coordinates: [lon, lat] },
-    properties,
-  };
 }
 
 function arrondissementFromPostal(code) {
@@ -578,6 +509,9 @@ async function main() {
     metro: await buildMetro(),
     noise: await buildNoise(),
     "air-quality": await buildAirQuality(),
+    lighting: await buildLighting(),
+    halal: await buildHalal(),
+    "metro-accessibility": await buildMetroAccessibility(),
   };
 
   const manifest = {

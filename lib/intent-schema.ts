@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PERSONA_IDS } from "./persona/types";
 import { LAYER_TYPES } from "./types";
 
 export const intentSchema = z.object({
@@ -28,6 +29,7 @@ export const intentSchema = z.object({
   limit: z.number().int().positive().max(500).optional(),
   timeBudget: z.number().positive().max(24 * 60).optional(),
   dietary: z.array(z.string().min(1)).max(10).optional(),
+  persona: z.enum(PERSONA_IDS).optional(),
 });
 
 export type IntentInput = z.infer<typeof intentSchema>;

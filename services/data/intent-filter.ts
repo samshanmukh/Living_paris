@@ -1,5 +1,7 @@
 import type { IntentQuery, LayerType, ParisFeature } from "@/lib/types";
 import { MOOD_LAYER_MAP } from "@/lib/constants";
+import { PERSONA_PRESETS } from "@/lib/persona/constants";
+import type { PersonaFilterHints } from "@/lib/persona/types";
 
 function budgetToLevel(budget?: number): "low" | "medium" | "high" | undefined {
   if (budget == null) return undefined;
@@ -58,6 +60,20 @@ function matchesMood(feature: ParisFeature, mood?: string): boolean {
   }
 }
 
+function personaFilterHints(intent: IntentQuery): PersonaFilterHints | undefined {
+  if (!intent.persona) return undefined;
+  return PERSONA_PRESETS[intent.persona]?.filterHints;
+}
+
+function matchesDietary(feature: ParisFeature, dietary?: string[]): boolean {
+  if (!dietary?.length) return true;
+  const featureDietary = feature.properties.dietary ?? [];
+  if (!featureDietary.length) return false;
+  return dietary.some((pref) =>
+    featureDietary.some((tag) => tag.toLowerCase() === pref.toLowerCase())
+  );
+}
+
 export function resolveLayers(intent: IntentQuery): LayerType[] {
   if (intent.layers?.length) return intent.layers;
 
@@ -66,7 +82,16 @@ export function resolveLayers(intent: IntentQuery): LayerType[] {
   }
 
   const mood = intent.mood ?? "general";
-  return MOOD_LAYER_MAP[mood] ?? MOOD_LAYER_MAP.general;
+  const moodLayers = MOOD_LAYER_MAP[mood] ?? MOOD_LAYER_MAP.general;
+
+  if (intent.persona) {
+    const primaryLayers = PERSONA_PRESETS[intent.persona]?.primaryLayers;
+    if (primaryLayers?.length) {
+      return [...new Set([...primaryLayers, ...moodLayers])];
+    }
+  }
+
+  return moodLayers;
 }
 
 export function filterByIntent(
@@ -74,16 +99,26 @@ export function filterByIntent(
   intent: IntentQuery
 ): ParisFeature[] {
   const layers = new Set(resolveLayers(intent));
+  const hints = personaFilterHints(intent);
+  const accessibility =
+    intent.accessibility || hints?.accessibility === true;
+  const dietary =
+    hints?.dietary?.length
+      ? [...new Set([...(intent.dietary ?? []), ...hints.dietary])]
+      : intent.dietary;
+  const requireQuiet = hints?.quiet === true;
 
   return features.filter((feature) => {
     const props = feature.properties;
 
     if (!layers.has(props.layer)) return false;
-    if (intent.accessibility && props.accessible === false) return false;
+    if (accessibility && props.accessible === false) return false;
     if (intent.indoor && !props.indoor) return false;
     if (intent.rainy && !props.indoor && props.layer !== "metro") return false;
     if (!matchesMood(feature, intent.mood)) return false;
     if (!matchesBudget(feature, intent.budget)) return false;
+    if (dietary?.length && !matchesDietary(feature, dietary)) return false;
+    if (requireQuiet && !props.quiet) return false;
 
     if (intent.mood === "relaxing" || intent.mood === "romantic") {
       if (props.noiseLevel != null && props.noiseLevel > 75) return false;

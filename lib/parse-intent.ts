@@ -1,4 +1,5 @@
 import type { IntentQuery, LayerType, MoodType } from "./types";
+import { detectPersonaFromMessage } from "@/services/persona/resolve-persona";
 
 /**
  * Heuristic natural-language → intent parser.
@@ -99,6 +100,9 @@ export function parseMessage(message: string): Partial<IntentQuery> {
   if (/bike|vélib|velib|cycl(?:e|ing)|bicycle/i.test(message)) {
     patch.layers = [...new Set<LayerType>([...(patch.layers ?? []), "bikes"])];
   }
+
+  const persona = detectPersonaFromMessage(message);
+  if (persona) patch.persona = persona;
 
   return patch;
 }

@@ -1,4 +1,5 @@
 import type { Feature, FeatureCollection, Point } from "geojson";
+import type { PersonaId } from "./persona/types";
 
 export const LAYER_TYPES = [
   "cafes",
@@ -10,6 +11,9 @@ export const LAYER_TYPES = [
   "accessibility",
   "noise",
   "air-quality",
+  "lighting",
+  "halal",
+  "metro-accessibility",
 ] as const;
 
 export type LayerType = (typeof LAYER_TYPES)[number];
@@ -71,6 +75,8 @@ export interface IntentQuery {
   timeBudget?: number;
   /** Dietary preferences, e.g. ["vegetarian"]. Boosts features tagged accordingly. */
   dietary?: string[];
+  /** Persona preset — re-ranks layers and filters for a specific user need. */
+  persona?: PersonaId;
 }
 
 export interface LayerMeta {

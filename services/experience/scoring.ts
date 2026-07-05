@@ -1,4 +1,6 @@
 import * as turf from "@turf/turf";
+import { PERSONA_PRESETS } from "@/lib/persona/constants";
+import type { PersonaPreset } from "@/lib/persona/types";
 import type {
   ExperienceMode,
   IntentQuery,
@@ -133,6 +135,56 @@ export function scoreFeatureForExperience(
   return { feature, score, reasons, distanceMeters: Math.round(distanceMeters) };
 }
 
+/** Apply persona preset scoring boosts on top of experience-mode scoring. */
+export function scoreWithPersonaBoosts(
+  feature: ParisFeature,
+  persona: PersonaPreset
+): { boost: number; reasons: string[] } {
+  const props = feature.properties;
+  const boosts = persona.scoringBoosts;
+  let boost = 0;
+  const reasons: string[] = [];
+
+  if (boosts.romantic && props.romantic) {
+    boost += boosts.romantic;
+    reasons.push("romantic spot");
+  }
+  if (boosts.familyFriendly && props.familyFriendly) {
+    boost += boosts.familyFriendly;
+    reasons.push("family friendly");
+  }
+  if (boosts.indoor && props.indoor) {
+    boost += boosts.indoor;
+    reasons.push("indoor");
+  }
+  if (boosts.outdoor && props.indoor === false) {
+    boost += boosts.outdoor;
+  }
+  if (boosts.quiet && props.quiet) {
+    boost += boosts.quiet;
+    reasons.push("quiet corner");
+  }
+  if (boosts.accessible && props.accessible) {
+    boost += boosts.accessible;
+    reasons.push("step-free access");
+  }
+  if (boosts.lowNoise && props.noiseLevel != null && props.noiseLevel < NOISE_QUIET_DB) {
+    boost += boosts.lowNoise;
+    reasons.push("low street noise");
+  }
+  if (boosts.tags && props.tags?.length) {
+    for (const tag of props.tags) {
+      const tagBoost = boosts.tags[tag];
+      if (tagBoost) {
+        boost += tagBoost;
+        reasons.push(tag);
+      }
+    }
+  }
+
+  return { boost, reasons };
+}
+
 /**
  * Hard filters that remove features entirely (vs. soft scoring above).
  * Kept minimal — the engine prefers reranking over emptying the map.
@@ -172,8 +224,28 @@ export function rankForExperience(
   intent: IntentQuery,
   center: [number, number]
 ): ScoredFeature[] {
+  const persona = intent.persona ? PERSONA_PRESETS[intent.persona] : undefined;
+
   return features
     .filter((f) => passesHardFilters(f, mode, intent))
-    .map((f) => scoreFeatureForExperience(f, mode, intent, center))
+    .map((f) => {
+      const scored = scoreFeatureForExperience(f, mode, intent, center);
+      if (persona) {
+        const { boost, reasons } = scoreWithPersonaBoosts(f, persona);
+        scored.score += boost;
+        scored.reasons.push(...reasons);
+      }
+      return scored;
+    })
     .sort((a, b) => b.score - a.score);
+}
+
+/** Rank features with persona boosts when a preset is active on the intent. */
+export function rankForPersona(
+  features: ParisFeature[],
+  mode: ExperienceMode,
+  intent: IntentQuery,
+  center: [number, number]
+): ScoredFeature[] {
+  return rankForExperience(features, mode, intent, center);
 }
