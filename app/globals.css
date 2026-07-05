@@ -56,15 +56,18 @@ body {
 }
 
 .lp-marker-hero {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   display: grid;
   place-items: center;
   background: var(--lp-accent, #d9a441);
-  color: #0f1117;
-  font-size: 11px;
+  color: #fff;
+  font-size: 12px;
   font-weight: 700;
-  box-shadow: 0 0 0 6px color-mix(in srgb, var(--lp-accent, #d9a441) 32%, transparent);
+  border: 2.5px solid #fff;
+  box-shadow:
+    0 4px 12px -2px rgba(94, 76, 56, 0.4),
+    0 0 0 6px color-mix(in srgb, var(--lp-accent, #d9a441) 26%, transparent);
   animation: lp-marker-pulse 1.8s ease-in-out infinite;
 }
 
@@ -79,12 +82,19 @@ body {
 }
 
 .lp-dark {
-  color: #f5f0e8;
+  color: #2b241c;
 }
 
 .lp-glass {
-  background: rgba(16, 18, 26, 0.72);
+  background: rgba(255, 252, 246, 0.82);
   backdrop-filter: blur(18px);
+  box-shadow: 0 8px 32px -12px rgba(94, 76, 56, 0.22);
+}
+
+.lp-glass-strong {
+  background: rgba(255, 253, 248, 0.92);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 12px 40px -14px rgba(94, 76, 56, 0.28);
 }
 
 @keyframes lp-marker-in {
@@ -114,10 +124,10 @@ body {
 
 .language-selector select {
   appearance: none;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid #e0d5c2;
   border-radius: 999px;
-  background: rgba(16, 18, 26, 0.72);
-  color: #f5f0e8;
+  background: rgba(255, 252, 246, 0.85);
+  color: #2b241c;
   padding: 4px 24px 4px 10px;
   font: inherit;
   font-size: 12px;

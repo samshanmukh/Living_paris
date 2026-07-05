@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type SpeechRecognitionCtor = new () => SpeechRecognitionInstance;
 
@@ -60,7 +60,11 @@ export interface UseSpeechRecognitionOptions {
 
 export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}) {
   const { lang = "en-US", onFinalTranscript, onError } = options;
-  const [supported] = useState(() => getSpeechRecognition() != null);
+  // Set after mount to avoid SSR hydration mismatch (API only exists in browser).
+  const [supported, setSupported] = useState(false);
+  useEffect(() => {
+    setSupported(getSpeechRecognition() != null);
+  }, []);
   const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [error, setError] = useState<string | null>(null);

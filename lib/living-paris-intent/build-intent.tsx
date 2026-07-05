@@ -12,14 +12,14 @@ import type {
 } from "./types";
 
 const STYLE_GRADIENT: Record<StopVisualStyle, string> = {
-  museum: "linear-gradient(135deg,#2a2440,#6b5b95)",
-  cafe: "linear-gradient(135deg,#3d2a1f,#c68b59)",
-  bakery: "linear-gradient(135deg,#4a3520,#d4a054)",
-  gallery: "linear-gradient(135deg,#1f2438,#9b8cff)",
-  view: "linear-gradient(135deg,#1a2a35,#5b7a99)",
-  restaurant: "linear-gradient(135deg,#3a2018,#c4593a)",
-  shop: "linear-gradient(135deg,#2b241c,#6b6155)",
-  park: "linear-gradient(135deg,#1e3324,#3e6b4a)",
+  museum: "linear-gradient(135deg,#b4a5d6,#8677b8)",
+  cafe: "linear-gradient(135deg,#e0b48c,#c68b59)",
+  bakery: "linear-gradient(135deg,#eccf9b,#d4a054)",
+  gallery: "linear-gradient(135deg,#b9aef0,#9b8cff)",
+  view: "linear-gradient(135deg,#a8c4dc,#7ba0c0)",
+  restaurant: "linear-gradient(135deg,#e09475,#c4593a)",
+  shop: "linear-gradient(135deg,#c9bda9,#a3947d)",
+  park: "linear-gradient(135deg,#a8cba0,#6b9a76)",
 };
 
 function layerToVisualStyle(layer: string): StopVisualStyle {

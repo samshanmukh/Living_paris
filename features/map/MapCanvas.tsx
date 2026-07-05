@@ -6,8 +6,8 @@ import { MapboxOverlay } from "@deck.gl/mapbox";
 import type { Feature, LineString } from "geojson";
 import { CONTEXT_OVERLAY_LAYERS } from "@/lib/map-layer-styles";
 import type { LayerType, MapState } from "@/lib/types";
-import { addBuildingExtrusions } from "./building-extrusions";
 import { buildDeckLayers } from "./build-deck-layers";
+import { addToyBuildings, applyToyCityStyle } from "./toy-city-style";
 
 const BASEMAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 const PARIS_CENTER: [number, number] = [2.3522, 48.8566];
@@ -87,9 +87,9 @@ export default function MapCanvas({
       container,
       style: BASEMAP_STYLE,
       center: PARIS_CENTER,
-      zoom: 12.5,
-      pitch: 48,
-      bearing: -12,
+      zoom: 14.6,
+      pitch: 58,
+      bearing: -18,
       attributionControl: { compact: true },
     });
 
@@ -103,8 +103,16 @@ export default function MapCanvas({
 
     map.on("load", () => {
       loadedRef.current = true;
-      addBuildingExtrusions(map);
+      applyToyCityStyle(map);
+      addToyBuildings(map);
       resize();
+
+      map.easeTo({
+        bearing: 8,
+        pitch: 55,
+        duration: 14000,
+        easing: (t) => t,
+      });
 
       onCaptureReady?.(async () => {
         try {

@@ -23,13 +23,16 @@ export default function IntentResponseBubble({
           className="pointer-events-none mx-4 mb-2 max-w-md sm:max-w-lg"
         >
           <div
-            className="lp-glass rounded-2xl border border-white/10 px-3.5 py-2.5 shadow-lg"
-            style={{ borderColor: `${accentColor}33` }}
+            className="lp-glass-strong rounded-2xl border px-3.5 py-2.5"
+            style={{ borderColor: `${accentColor}55` }}
           >
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/45">
+            <p
+              className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
+              style={{ color: accentColor }}
+            >
               Paris
             </p>
-            <p className="text-[13px] leading-snug text-[#f5f0e8]">{response}</p>
+            <p className="text-[13px] leading-snug text-[#2b241c]">{response}</p>
           </div>
         </motion.div>
       )}

@@ -24,9 +24,9 @@ export default function IntentBottomSheet({
       initial={{ opacity: 0, y: 26 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: "spring", stiffness: 300, damping: 28 }}
-      className="lp-glass pointer-events-auto mx-3 mb-2 overflow-hidden rounded-[28px] border border-white/10 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.65)]"
+      className="lp-glass-strong pointer-events-auto mx-3 mb-2 overflow-hidden rounded-[28px] border border-[#e5dbc9]"
       style={{
-        boxShadow: `0 20px 60px -20px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.06), 0 0 40px ${intent.glowColor}`,
+        boxShadow: `0 16px 44px -18px rgba(94,76,56,0.35), 0 0 32px ${intent.glowColor}`,
       }}
     >
       <button
@@ -36,14 +36,11 @@ export default function IntentBottomSheet({
       >
         {intent.icon}
         <div className="min-w-0 flex-1">
-          <p
-            className="font-display text-[15px] font-semibold leading-tight text-[#f5f0e8]"
-            style={{ color: "#f5f0e8" }}
-          >
+          <p className="font-display text-[15px] font-semibold leading-tight text-[#2b241c]">
             {intent.title}
           </p>
-          <p className="truncate text-[12px] text-white/55">{intent.subtitle}</p>
-          <p className="mt-0.5 text-[11px] font-medium text-white/40">
+          <p className="truncate text-[12px] text-[#8a7d6b]">{intent.subtitle}</p>
+          <p className="mt-0.5 text-[11px] font-medium text-[#a09380]">
             {isGenerating
               ? "Living Paris is planning…"
               : `${intent.stops.length} stops · ${intent.distance} · ${intent.duration}`}
@@ -51,7 +48,7 @@ export default function IntentBottomSheet({
         </div>
         <motion.span
           animate={{ rotate: open ? 180 : 0 }}
-          className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white/8 text-white/70"
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#efe7d8] text-[#6b6155]"
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
             <path d="m6 9 6 6 6-6" />
@@ -70,7 +67,7 @@ export default function IntentBottomSheet({
           >
             <div className="space-y-3 px-4 pb-4">
               {intent.stops.length === 0 && !isGenerating && (
-                <p className="text-[12.5px] text-white/50">
+                <p className="text-[12.5px] text-[#8a7d6b]">
                   No stops yet — try another mood or widen your request.
                 </p>
               )}
@@ -82,13 +79,13 @@ export default function IntentBottomSheet({
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.05 * index }}
-                    className={`flex gap-3 rounded-2xl border border-white/6 bg-white/5 p-2.5 ${
-                      focusedStopId === stop.id ? "ring-1 ring-white/20" : ""
+                    className={`flex gap-3 rounded-2xl border border-[#ece2d0] bg-white/75 p-2.5 ${
+                      focusedStopId === stop.id ? "ring-1 ring-[#d8ccb8]" : ""
                     }`}
                     style={{
                       boxShadow:
                         focusedStopId === stop.id
-                          ? `0 0 0 1px ${intent.accentColor}55, 0 8px 24px -12px ${intent.glowColor}`
+                          ? `0 0 0 1.5px ${intent.accentColor}66, 0 8px 22px -12px ${intent.glowColor}`
                           : undefined,
                     }}
                   >
@@ -105,17 +102,17 @@ export default function IntentBottomSheet({
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <p className="truncate text-[13px] font-semibold text-[#f5f0e8]">
+                        <p className="truncate text-[13px] font-semibold text-[#2b241c]">
                           {stop.name}
                         </p>
-                        <span className="shrink-0 rounded-full bg-white/8 px-2 py-0.5 text-[10px] uppercase tracking-wide text-white/45">
+                        <span className="shrink-0 rounded-full bg-[#efe7d8] px-2 py-0.5 text-[10px] uppercase tracking-wide text-[#8a7d6b]">
                           {stop.category}
                         </span>
                       </div>
-                      <p className="mt-0.5 line-clamp-2 text-[11.5px] leading-snug text-white/50">
+                      <p className="mt-0.5 line-clamp-2 text-[11.5px] leading-snug text-[#8a7d6b]">
                         {stop.description}
                       </p>
-                      <p className="mt-1 text-[10.5px] font-medium text-white/35">
+                      <p className="mt-1 text-[10.5px] font-medium text-[#a09380]">
                         {stop.duration}
                       </p>
                     </div>

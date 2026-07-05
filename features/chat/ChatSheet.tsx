@@ -13,10 +13,16 @@ export interface ChatMessage {
 interface ChatSheetProps {
   messages: ChatMessage[];
   thinking: boolean;
+  accentColor?: string;
   onSend: (message: string) => void;
 }
 
-export default function ChatSheet({ messages, thinking, onSend }: ChatSheetProps) {
+export default function ChatSheet({
+  messages,
+  thinking,
+  accentColor = "#c4593a",
+  onSend,
+}: ChatSheetProps) {
   const [draft, setDraft] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -53,9 +59,9 @@ export default function ChatSheet({ messages, thinking, onSend }: ChatSheetProps
   }, [listening, start, stop]);
 
   return (
-    <div className="lp-glass pointer-events-auto flex max-h-[42dvh] flex-col rounded-t-[28px] border border-white/10 shadow-[0_-20px_60px_-20px_rgba(0,0,0,0.8)]">
+    <div className="lp-glass-strong pointer-events-auto flex max-h-[42dvh] flex-col rounded-t-[28px] border border-[#e5dbc9]">
       <div className="flex justify-center pb-1 pt-2.5">
-        <div className="h-1 w-10 rounded-full bg-white/15" />
+        <div className="h-1 w-10 rounded-full bg-[#d8ccb8]" />
       </div>
 
       {messages.length > 0 && (
@@ -71,12 +77,17 @@ export default function ChatSheet({ messages, thinking, onSend }: ChatSheetProps
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 className={
                   message.role === "user"
-                    ? "ml-auto max-w-[82%] rounded-2xl rounded-br-md bg-white/12 px-3.5 py-2.5 text-[13.5px] leading-snug text-[#f5f0e8]"
-                    : "mr-auto max-w-[88%] rounded-2xl rounded-bl-md border border-white/8 bg-black/25 px-3.5 py-2.5 text-[13.5px] leading-snug text-[#f5f0e8]"
+                    ? "ml-auto max-w-[82%] rounded-2xl rounded-br-md px-3.5 py-2.5 text-[13.5px] leading-snug text-white"
+                    : "mr-auto max-w-[88%] rounded-2xl rounded-bl-md border border-[#ece2d0] bg-white/80 px-3.5 py-2.5 text-[13.5px] leading-snug text-[#2b241c]"
+                }
+                style={
+                  message.role === "user"
+                    ? { backgroundColor: accentColor }
+                    : undefined
                 }
               >
                 {message.role === "paris" && (
-                  <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-[0.14em] text-white/40">
+                  <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-[0.14em] text-[#a09380]">
                     Paris
                   </span>
                 )}
@@ -92,30 +103,31 @@ export default function ChatSheet({ messages, thinking, onSend }: ChatSheetProps
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-2 rounded-2xl border border-white/8 bg-white/5 px-3.5 py-2.5"
+            className="flex items-center gap-2 rounded-2xl border border-[#ece2d0] bg-white/70 px-3.5 py-2.5"
           >
             {[0, 1, 2].map((index) => (
               <motion.span
                 key={index}
-                className="h-1.5 w-1.5 rounded-full bg-[#d9a441]"
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ backgroundColor: accentColor }}
                 animate={{ opacity: [0.25, 1, 0.25] }}
                 transition={{ duration: 1.1, repeat: Infinity, delay: index * 0.18 }}
               />
             ))}
-            <span className="text-[12px] font-medium text-white/55">
+            <span className="text-[12px] font-medium text-[#8a7d6b]">
               Living Paris is planning…
             </span>
           </motion.div>
         </div>
       )}
 
-      <div className="flex items-center gap-2 border-t border-white/8 px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-2.5">
+      <div className="flex items-center gap-2 border-t border-[#ece2d0] px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-2.5">
         <input
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => event.key === "Enter" && send(draft)}
           placeholder={listening ? "Listening…" : "Ask Living Paris anything…"}
-          className="min-w-0 flex-1 rounded-full border border-white/10 bg-black/25 px-4 py-2.5 text-[14px] text-[#f5f0e8] outline-none placeholder:text-white/30 focus:border-white/25"
+          className="min-w-0 flex-1 rounded-full border border-[#e0d5c2] bg-white/85 px-4 py-2.5 text-[14px] text-[#2b241c] outline-none placeholder:text-[#b3a893] focus:border-[#c9b995]"
         />
         {voiceSupported && (
           <motion.button
@@ -124,8 +136,11 @@ export default function ChatSheet({ messages, thinking, onSend }: ChatSheetProps
             onClick={toggleMic}
             aria-label={listening ? "Stop listening" : "Speak to Paris"}
             className={`grid h-11 w-11 shrink-0 place-items-center rounded-full transition-colors ${
-              listening ? "bg-[#e879a9] text-white" : "bg-white/10 text-white hover:bg-white/18"
+              listening
+                ? "text-white"
+                : "bg-[#efe7d8] text-[#6b6155] hover:bg-[#e6dcc8]"
             }`}
+            style={listening ? { backgroundColor: accentColor } : undefined}
           >
             {listening ? "■" : "🎤"}
           </motion.button>
@@ -136,7 +151,8 @@ export default function ChatSheet({ messages, thinking, onSend }: ChatSheetProps
           onClick={() => send(draft)}
           disabled={!draft.trim() || thinking}
           aria-label="Send"
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#d9a441] text-[#0f1117] transition-opacity disabled:opacity-35"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-white transition-opacity disabled:opacity-35"
+          style={{ backgroundColor: accentColor }}
         >
           →
         </motion.button>

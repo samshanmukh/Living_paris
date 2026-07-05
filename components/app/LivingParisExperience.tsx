@@ -19,8 +19,8 @@ import { useLivingParisIntent } from "@/hooks/useLivingParisIntent";
 const MapCanvas = dynamic(() => import("@/features/map/MapCanvas"), {
   ssr: false,
   loading: () => (
-    <div className="absolute inset-0 grid place-items-center bg-[#0f1117]">
-      <span className="font-display text-sm text-white/50">Waking Paris…</span>
+    <div className="absolute inset-0 grid place-items-center bg-[#efe9df]">
+      <span className="font-display text-sm text-[#8a7d6b]">Waking Paris…</span>
     </div>
   ),
 });
@@ -152,7 +152,7 @@ function LivingParisExperienceInner() {
     selectedPresetId != null || messages.length > 0 || currentIntent.id !== "idle";
 
   return (
-    <main className="lp-dark relative h-dvh w-full overflow-hidden bg-[#0f1117]">
+    <main className="lp-dark relative h-dvh w-full overflow-hidden bg-[#efe9df]">
       {mapFrozen && mapSnapshot ? (
         <MapSnapshotLayer
           src={mapSnapshot}
@@ -176,17 +176,20 @@ function LivingParisExperienceInner() {
         <AnimatePresence>
           <IntentMoodOverlay intent={currentIntent} />
         </AnimatePresence>
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.04),transparent_45%)]" />
-        <div className="absolute inset-0 shadow-[inset_0_0_140px_50px_rgba(0,0,0,0.35)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_10%,rgba(255,250,240,0.25),transparent_55%)]" />
+        <div className="absolute inset-0 shadow-[inset_0_0_120px_30px_rgba(94,76,56,0.14)]" />
       </div>
 
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col items-center gap-2 px-4 pt-[max(0.9rem,env(safe-area-inset-top))]">
         <div className="pointer-events-auto flex w-full max-w-md items-center justify-between gap-2 sm:max-w-lg">
-          <div className="lp-glass flex flex-1 items-center rounded-full border border-white/10 px-3 py-2">
-            <span className="mr-2 grid h-5 w-5 place-items-center rounded-full bg-white/10 text-[10px] font-bold text-[#f5f0e8]">
+          <div className="lp-glass flex flex-1 items-center rounded-full border border-[#e5dbc9] px-3 py-2">
+            <span
+              className="mr-2 grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold text-white"
+              style={{ backgroundColor: currentIntent.accentColor }}
+            >
               P
             </span>
-            <span className="font-display text-[14px] font-semibold tracking-tight text-[#f5f0e8]">
+            <span className="font-display text-[14px] font-semibold tracking-tight text-[#2b241c]">
               Living Paris
             </span>
           </div>
@@ -236,6 +239,7 @@ function LivingParisExperienceInner() {
         <ChatSheet
           messages={messages}
           thinking={isGenerating}
+          accentColor={currentIntent.accentColor}
           onSend={(text) => void handleSubmit(text)}
         />
       </div>

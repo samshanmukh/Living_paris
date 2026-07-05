@@ -36,14 +36,14 @@ export default function IntentPresetChips({
             onClick={() => onSelect(preset.id)}
             className={`shrink-0 rounded-full border px-3.5 py-1.5 text-[12px] font-medium transition-all disabled:opacity-45 ${
               selected
-                ? "border-transparent text-[#0f1117] shadow-lg"
-                : "border-white/12 bg-white/6 text-white/72 hover:border-white/25 hover:text-white"
+                ? "border-transparent text-white shadow-lg"
+                : "lp-glass border-[#e0d5c2] text-[#6b6155] hover:border-[#c9b995] hover:text-[#2b241c]"
             }`}
             style={
               selected
                 ? {
                     backgroundColor: preset.accentColor,
-                    boxShadow: `0 8px 24px -8px ${preset.accentColor}`,
+                    boxShadow: `0 8px 22px -8px ${preset.accentColor}`,
                   }
                 : undefined
             }
