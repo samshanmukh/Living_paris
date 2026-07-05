@@ -159,6 +159,7 @@ function LivingParisExperienceInner() {
           routeGeometry={routeGeometry}
           hiddenLayers={hiddenLayers}
           routeAccentColor={currentIntent.accentColor}
+          snapshotCapture={devCacheEnabled && useLiveMap}
           onCaptureReady={handleCaptureReady}
           onMarkerClick={(id) => {
             setFocusedStopId(id);
