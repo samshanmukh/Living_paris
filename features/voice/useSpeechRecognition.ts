@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useSyncExternalStore } from "react";
 
 type SpeechRecognitionCtor = new () => SpeechRecognitionInstance;
 
@@ -52,6 +52,8 @@ function getSpeechRecognition(): SpeechRecognitionCtor | null {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
+const subscribeNoop = () => () => {};
+
 export interface UseSpeechRecognitionOptions {
   lang?: string;
   onFinalTranscript?: (text: string) => void;
@@ -60,7 +62,12 @@ export interface UseSpeechRecognitionOptions {
 
 export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}) {
   const { lang = "en-US", onFinalTranscript, onError } = options;
-  const [supported] = useState(() => getSpeechRecognition() != null);
+  // Hydration-safe browser API detection: false during SSR, real value on client.
+  const supported = useSyncExternalStore(
+    subscribeNoop,
+    () => getSpeechRecognition() != null,
+    () => false
+  );
   const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [error, setError] = useState<string | null>(null);

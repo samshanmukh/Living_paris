@@ -1,44 +1,27 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { AnimatePresence, motion } from "framer-motion";
-import type { Feature, LineString } from "geojson";
-import { LanguageProvider, useLanguage } from "@/components/app/LanguageProvider";
+import { AnimatePresence } from "framer-motion";
+import { LanguageProvider } from "@/components/app/LanguageProvider";
 import { LanguageSelector } from "@/components/app/LanguageSelector";
-import ChatSheet, { type ChatMessage } from "@/features/chat/ChatSheet";
-import ExperienceCard from "@/features/experience/ExperienceCard";
+import UiDevToolbar from "@/features/dev/UiDevToolbar";
+import IntentDrawer, { type ChatMessage } from "@/features/intent/IntentDrawer";
+import IntentMoodOverlay, { IntentHeader } from "@/features/intent/IntentMoodOverlay";
+import IntentResponseBubble from "@/features/intent/IntentResponseBubble";
 import MapLayerControls from "@/features/map/MapLayerControls";
+import MapSnapshotLayer from "@/features/map/MapSnapshotLayer";
 import { useSpeechSynthesis } from "@/features/voice/useSpeechSynthesis";
-import { useChat } from "@/hooks/useChat";
-import { MODE_PROMPTS, OPENING_CHIP_IDS } from "@/lib/mode-prompts";
-import type { ExperienceResult, IntentQuery, LayerType, MapTheme } from "@/lib/types";
-import type { RouteResponse } from "@/services/routing/route-planner";
+import { useLivingParisIntent } from "@/hooks/useLivingParisIntent";
 
 const MapCanvas = dynamic(() => import("@/features/map/MapCanvas"), {
   ssr: false,
   loading: () => (
-    <div className="absolute inset-0 grid place-items-center bg-cream">
-      <span className="font-display text-sm text-ink-soft">Waking Paris…</span>
+    <div className="absolute inset-0 grid place-items-center bg-[#efe9df]">
+      <span className="font-display text-sm text-[#8a7d6b]">Waking Paris…</span>
     </div>
   ),
 });
-
-const THEME_TINT: Record<MapTheme, string> = {
-  romantic:
-    "bg-[radial-gradient(ellipse_at_50%_30%,rgba(217,164,65,0.16),rgba(196,89,58,0.10)_60%,transparent)]",
-  rain: "bg-[linear-gradient(rgba(91,122,153,0.22),rgba(55,65,92,0.14))]",
-  family: "bg-[radial-gradient(ellipse_at_50%_30%,rgba(62,107,74,0.12),transparent_70%)]",
-  night: "bg-[linear-gradient(rgba(55,65,92,0.35),rgba(43,36,28,0.25))]",
-  day: "",
-};
-
-const FOLLOWUP_CHIPS = [
-  "It's raining",
-  "We only have an hour",
-  "She's vegetarian",
-  "Make it wheelchair friendly",
-];
 
 let messageId = 0;
 const nextId = () => `m${++messageId}`;
@@ -52,161 +35,170 @@ export function LivingParisExperience() {
 }
 
 function LivingParisExperienceInner() {
-  const { t } = useLanguage();
-  const { speak, provider: ttsProvider } = useSpeechSynthesis("en-US");
-  const { sendMessage, intentSource } = useChat();
+  const { speak } = useSpeechSynthesis("en-US");
+  const {
+    currentIntent,
+    presetIntents,
+    selectedPresetId,
+    selectPreset,
+    submitFreeformIntent,
+    isGenerating,
+    livingParisResponse,
+    intentSource,
+    result,
+    routeGeometry,
+    hiddenLayers,
+    toggleLayer,
+    devCache,
+  } = useLivingParisIntent();
 
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "welcome",
-      role: "paris",
-      text: t.messages.loading.split(".")[0] + ".",
-    },
-  ]);
-  const [thinking, setThinking] = useState(false);
-  const [result, setResult] = useState<ExperienceResult | null>(null);
-  const [route, setRoute] = useState<RouteResponse | null>(null);
-  const [routeGeometry, setRouteGeometry] = useState<Feature<LineString> | null>(null);
-  const [cardOpen, setCardOpen] = useState(true);
-  const [redrawing, setRedrawing] = useState(false);
-  const [hiddenLayers, setHiddenLayers] = useState<Set<LayerType>>(new Set());
+  const {
+    enabled: devCacheEnabled,
+    useLiveMap,
+    captureMapSnapshot,
+    persistCache,
+    frozen: mapFrozen,
+    mapSnapshot,
+    savedAt: cacheSavedAt,
+    setUseLiveMap,
+    clearDevCache,
+  } = devCache;
+
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [focusedStopId, setFocusedStopId] = useState<string | null>(null);
-  const intentRef = useRef<IntentQuery | undefined>(undefined);
-  const abortRef = useRef<AbortController | null>(null);
-  const redrawTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [expandSignal, setExpandSignal] = useState(0);
+  const lastSpokenRef = useRef<string | null>(null);
+  const mapCaptureRef = useRef<(() => Promise<string | null>) | null>(null);
 
-  const openingChips = OPENING_CHIP_IDS.map((id) => MODE_PROMPTS[id]);
-
-  const toggleLayer = useCallback((layer: LayerType) => {
-    setHiddenLayers((prev) => {
-      const next = new Set(prev);
-      if (next.has(layer)) next.delete(layer);
-      else next.add(layer);
-      return next;
+  useEffect(() => {
+    if (!livingParisResponse || livingParisResponse === lastSpokenRef.current) return;
+    lastSpokenRef.current = livingParisResponse;
+    setMessages((prev) => {
+      if (prev.some((m) => m.role === "paris" && m.text === livingParisResponse)) return prev;
+      return [...prev, { id: nextId(), role: "paris", text: livingParisResponse }];
     });
+    void speak(livingParisResponse);
+  }, [livingParisResponse, speak]);
+
+  useEffect(() => {
+    if (!devCacheEnabled || !useLiveMap || !result || isGenerating) return;
+
+    const timer = window.setTimeout(async () => {
+      if (!mapCaptureRef.current) return;
+      await captureMapSnapshot(mapCaptureRef.current);
+    }, 2800);
+
+    return () => window.clearTimeout(timer);
+  }, [captureMapSnapshot, devCacheEnabled, isGenerating, result, useLiveMap]);
+
+  const handleCaptureSnapshot = useCallback(async () => {
+    if (mapCaptureRef.current) {
+      await captureMapSnapshot(mapCaptureRef.current);
+      return;
+    }
+    persistCache();
+  }, [captureMapSnapshot, persistCache]);
+
+  const handleCaptureReady = useCallback((capture: () => Promise<string | null>) => {
+    mapCaptureRef.current = capture;
   }, []);
 
-  const handleMarkerClick = useCallback((markerId: string) => {
-    setCardOpen(true);
-    setFocusedStopId(markerId);
+  const pushErrorUnlessAborted = useCallback((error: unknown) => {
+    // Superseded requests abort silently — the newer query owns the UI.
+    if (error instanceof DOMException && error.name === "AbortError") return;
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: nextId(),
+        role: "paris",
+        text: "Something went wrong — try again in a moment.",
+      },
+    ]);
   }, []);
 
-  const handleSend = useCallback(
+  const handleSubmit = useCallback(
     async (text: string) => {
-      abortRef.current?.abort();
-      const controller = new AbortController();
-      abortRef.current = controller;
-
       setMessages((prev) => [...prev, { id: nextId(), role: "user", text }]);
-      setThinking(true);
       setFocusedStopId(null);
-
       try {
-        const history = messages
-          .filter((m) => m.id !== "welcome")
-          .map((m) => ({
-            role: (m.role === "user" ? "user" : "assistant") as "user" | "assistant",
-            content: m.text,
-          }));
-
-        const data = await sendMessage(text, {
-          intent: intentRef.current,
-          history,
-          context: { lat: 48.8566, lon: 2.3522 },
-          signal: controller.signal,
-        });
-
-        intentRef.current = data.intent;
-        setRedrawing(true);
-        setResult(data.result);
-        setRoute(data.route);
-        setRouteGeometry(data.route?.geometry ?? null);
-        setHiddenLayers(new Set());
-        setCardOpen(true);
-        setMessages((prev) => [
-          ...prev,
-          { id: nextId(), role: "paris", text: data.reply },
-        ]);
-        void speak(data.reply);
-
-        if (redrawTimerRef.current) clearTimeout(redrawTimerRef.current);
-        redrawTimerRef.current = setTimeout(() => setRedrawing(false), 2400);
+        await submitFreeformIntent(text);
       } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setResult(null);
-        setRoute(null);
-        setRouteGeometry(null);
-        setRedrawing(false);
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: nextId(),
-            role: "paris",
-            text: t.messages.queryFailed,
-          },
-        ]);
-      } finally {
-        if (abortRef.current === controller) {
-          setThinking(false);
-        }
+        pushErrorUnlessAborted(error);
       }
     },
-    [messages, sendMessage, speak, t.messages.queryFailed]
+    [pushErrorUnlessAborted, submitFreeformIntent]
   );
 
-  const theme: MapTheme = result?.mapState.theme ?? "day";
-  const hasStarted = messages.length > 1;
+  const handlePreset = useCallback(
+    async (id: (typeof presetIntents)[number]["id"]) => {
+      const label = presetIntents.find((p) => p.id === id)?.label ?? id;
+      setMessages((prev) => [...prev, { id: nextId(), role: "user", text: label }]);
+      setFocusedStopId(null);
+      try {
+        await selectPreset(id);
+      } catch (error) {
+        pushErrorUnlessAborted(error);
+      }
+    },
+    [presetIntents, pushErrorUnlessAborted, selectPreset]
+  );
+
+  const hasStarted =
+    selectedPresetId != null || messages.length > 0 || currentIntent.id !== "idle";
 
   return (
-    <main className="relative h-dvh w-full overflow-hidden bg-cream">
-      <MapCanvas
-        mapState={result?.mapState ?? null}
-        routeGeometry={routeGeometry}
-        hiddenLayers={hiddenLayers}
-        onMarkerClick={handleMarkerClick}
-      />
+    <main className="lp-dark relative h-dvh w-full overflow-hidden bg-[#efe9df]">
+      {mapFrozen && mapSnapshot ? (
+        <MapSnapshotLayer
+          src={mapSnapshot}
+          accentColor={currentIntent.accentColor}
+        />
+      ) : (
+        <MapCanvas
+          mapState={result?.mapState ?? null}
+          routeGeometry={routeGeometry}
+          hiddenLayers={hiddenLayers}
+          routeAccentColor={currentIntent.accentColor}
+          onCaptureReady={handleCaptureReady}
+          onMarkerClick={(id) => {
+            setFocusedStopId(id);
+            setExpandSignal((value) => value + 1);
+          }}
+        />
+      )}
 
-      <AnimatePresence>
-        {theme !== "day" && (
-          <motion.div
-            key={theme}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1.4 }}
-            className={`pointer-events-none absolute inset-0 ${THEME_TINT[theme]}`}
-          />
-        )}
-      </AnimatePresence>
-
-      <div className="pointer-events-none absolute inset-0 shadow-[inset_0_0_120px_40px_rgba(43,36,28,0.10)]" />
+      <div className="pointer-events-none absolute inset-0 z-[1]">
+        <AnimatePresence>
+          <IntentMoodOverlay intent={currentIntent} />
+        </AnimatePresence>
+        <div className="absolute inset-0 bg-[linear-gradient(165deg,rgba(255,193,120,0.16),transparent_38%,rgba(255,170,90,0.05)_70%,rgba(94,60,30,0.10))]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_10%,rgba(255,250,240,0.2),transparent_55%)]" />
+        <div className="absolute inset-0 shadow-[inset_0_0_120px_30px_rgba(94,76,56,0.16)]" />
+      </div>
 
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-col items-center gap-2 px-4 pt-[max(0.9rem,env(safe-area-inset-top))]">
-        <motion.div
-          initial={{ opacity: 0, y: -16 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="pointer-events-auto flex w-full max-w-md items-center justify-between gap-2 rounded-full bg-cream-soft/92 px-4 py-2 shadow-[var(--pill-shadow)] backdrop-blur-md sm:max-w-lg"
-        >
-          <div className="flex items-center gap-2">
-            <span className="grid h-5 w-5 place-items-center rounded-full bg-terracotta text-[10px] font-bold text-cream-soft">
+        <div className="pointer-events-auto flex w-full max-w-md items-center justify-between gap-2 sm:max-w-lg">
+          <div className="lp-glass flex flex-1 items-center rounded-full border border-[#e5dbc9] px-3 py-2">
+            <span
+              className="mr-2 grid h-6 w-6 place-items-center rounded-full text-[11px] font-bold text-white"
+              style={{ backgroundColor: currentIntent.accentColor }}
+            >
               P
             </span>
-            <span className="font-display text-[14px] font-semibold tracking-tight text-ink">
-              {t.brand.eyebrow}
+            <span className="font-display text-[14px] font-semibold tracking-tight text-[#2b241c]">
+              Living Paris
             </span>
-            {intentSource && hasStarted && (
-              <span className="rounded-full bg-ink/8 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-soft">
-                {intentSource === "llm" ? "Grok" : "local"}
-              </span>
-            )}
-            {ttsProvider === "grok" && (
-              <span className="rounded-full bg-terracotta/15 px-2 py-0.5 text-[10px] font-semibold text-terracotta">
-                voice
-              </span>
-            )}
           </div>
           <LanguageSelector />
-        </motion.div>
+        </div>
+
+        {hasStarted && (
+          <IntentHeader
+            intent={currentIntent}
+            isGenerating={isGenerating}
+            intentSource={intentSource}
+          />
+        )}
 
         {result?.mapState.visibleLayers && (
           <MapLayerControls
@@ -215,43 +207,36 @@ function LivingParisExperienceInner() {
             onToggle={toggleLayer}
           />
         )}
-
-        <AnimatePresence>
-          {redrawing && (
-            <motion.div
-              initial={{ opacity: 0, y: -8, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -8, scale: 0.95 }}
-              className="flex items-center gap-2 rounded-full bg-ink/85 px-3.5 py-1.5 backdrop-blur-sm"
-            >
-              <motion.span
-                className="h-1.5 w-1.5 rounded-full bg-gold"
-                animate={{ scale: [1, 1.5, 1] }}
-                transition={{ duration: 0.9, repeat: Infinity }}
-              />
-              <span className="text-[11.5px] font-medium text-cream-soft">
-                Paris is redrawing your view
-              </span>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
 
-      <div className="absolute inset-x-0 bottom-0 z-10 mx-auto flex w-full max-w-md flex-col justify-end sm:max-w-lg">
-        <ExperienceCard
-          result={result}
-          route={route}
-          open={cardOpen}
-          focusedStopId={focusedStopId}
-          onToggle={() => setCardOpen((value) => !value)}
-        />
-        <ChatSheet
-          messages={messages}
-          chips={hasStarted ? FOLLOWUP_CHIPS : openingChips}
-          thinking={thinking}
-          onSend={(text) => void handleSend(text)}
+      <div className="pointer-events-none absolute inset-x-0 bottom-[240px] z-10 mx-auto w-full max-w-md sm:max-w-lg">
+        <IntentResponseBubble
+          response={livingParisResponse}
+          accentColor={currentIntent.accentColor}
         />
       </div>
+
+      <IntentDrawer
+        intent={currentIntent}
+        presets={presetIntents}
+        selectedPresetId={selectedPresetId}
+        messages={messages}
+        isGenerating={isGenerating}
+        focusedStopId={focusedStopId}
+        expandSignal={expandSignal}
+        onSend={(text) => void handleSubmit(text)}
+        onSelectPreset={(id) => void handlePreset(id)}
+      />
+
+      {devCacheEnabled && (
+        <UiDevToolbar
+          savedAt={cacheSavedAt}
+          frozen={mapFrozen}
+          onCapture={() => void handleCaptureSnapshot()}
+          onUseLiveMap={() => setUseLiveMap(true)}
+          onClear={clearDevCache}
+        />
+      )}
     </main>
   );
 }
