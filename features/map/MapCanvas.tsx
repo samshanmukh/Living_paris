@@ -6,10 +6,19 @@ import {
   useMemo,
   useRef,
   useState,
+  type ComponentType,
   type CSSProperties,
+  type ReactNode,
 } from "react";
-import MapGL, { Marker, useControl, type MapRef } from "react-map-gl/mapbox";
-import MapLibreGL from "react-map-gl/maplibre";
+import MapGL, {
+  Marker as MapboxMarker,
+  useControl as useMapboxControl,
+  type MapRef,
+} from "react-map-gl/mapbox";
+import MapLibreGL, {
+  Marker as MapLibreMarker,
+  useControl as useMapLibreControl,
+} from "react-map-gl/maplibre";
 import { type Map as MapboxMap } from "mapbox-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { MapboxOverlay } from "@deck.gl/mapbox";
@@ -39,12 +48,103 @@ interface MapCanvasProps {
 }
 
 /** Mounts the deck.gl canvas inside react-map-gl with zero conflict. */
-function DeckGLOverlay({ layers }: { layers: Layer[] }) {
-  const overlay = useControl<MapboxOverlay>(
+function DeckGLOverlayMapbox({ layers }: { layers: Layer[] }) {
+  const overlay = useMapboxControl<MapboxOverlay>(
     () => new MapboxOverlay({ interleaved: true, layers: [] })
   );
   overlay.setProps({ layers });
   return null;
+}
+
+function DeckGLOverlayMapLibre({ layers }: { layers: Layer[] }) {
+  const overlay = useMapLibreControl<MapboxOverlay>(
+    () => new MapboxOverlay({ interleaved: true, layers: [] })
+  );
+  overlay.setProps({ layers });
+  return null;
+}
+
+type MarkerProps = {
+  longitude: number;
+  latitude: number;
+  anchor?: "center" | "bottom" | "top" | "left" | "right";
+  offset?: [number, number];
+  children?: ReactNode;
+};
+
+type MarkerComponent = ComponentType<MarkerProps>;
+
+function MapMarkerLayer({
+  Marker,
+  DeckOverlay,
+  deckLayers,
+  domMarkers,
+  stopOrder,
+  firstStop,
+  routeAccentColor,
+  onMarkerClick,
+}: {
+  Marker: MarkerComponent;
+  DeckOverlay: typeof DeckGLOverlayMapbox;
+  deckLayers: Layer[];
+  domMarkers: NonNullable<MapState>["markers"];
+  stopOrder: Map<string, number>;
+  firstStop: MapState["routeWaypoints"][number] | undefined;
+  routeAccentColor?: string;
+  onMarkerClick?: (id: string) => void;
+}) {
+  return (
+    <>
+      {deckLayers.length > 0 ? <DeckOverlay layers={deckLayers} /> : null}
+
+      {domMarkers.map((marker, index) => {
+        const order = marker.highlighted
+          ? stopOrder.get(`${marker.coords[0]},${marker.coords[1]}`)
+          : undefined;
+        return (
+          <Marker
+            key={marker.id}
+            longitude={marker.coords[0]}
+            latitude={marker.coords[1]}
+            anchor="center"
+          >
+            <button
+              type="button"
+              aria-label={marker.name}
+              onClick={() => onMarkerClick?.(marker.id)}
+              className={cn("lp-marker", marker.highlighted && "lp-marker-hero")}
+              data-layer={marker.layer}
+              style={{
+                animationDelay: `${Math.min(index * 35, 800)}ms`,
+                ...(marker.highlighted && routeAccentColor
+                  ? {
+                      background: routeAccentColor,
+                      boxShadow: `0 0 0 6px ${routeAccentColor}44`,
+                    }
+                  : {}),
+              }}
+            >
+              {order ?? ""}
+            </button>
+          </Marker>
+        );
+      })}
+
+      {firstStop && (
+        <Marker
+          longitude={firstStop.lon}
+          latitude={firstStop.lat}
+          anchor="bottom"
+          offset={[0, -34]}
+        >
+          <div className="lp-speech">
+            <span className="lp-speech-tag">Start here</span>
+            {firstStop.name}
+          </div>
+        </Marker>
+      )}
+    </>
+  );
 }
 
 function routeNeedsPulse(
@@ -228,58 +328,14 @@ export default function MapCanvas({
 
   const firstStop = mapState?.routeWaypoints[0];
 
-  const mapOverlay = (
-    <>
-      {deckLayers.length > 0 ? <DeckGLOverlay layers={deckLayers} /> : null}
-
-      {domMarkers.map((marker, index) => {
-        const order = marker.highlighted
-          ? stopOrder.get(`${marker.coords[0]},${marker.coords[1]}`)
-          : undefined;
-        return (
-          <Marker
-            key={marker.id}
-            longitude={marker.coords[0]}
-            latitude={marker.coords[1]}
-            anchor="center"
-          >
-            <button
-              type="button"
-              aria-label={marker.name}
-              onClick={() => onMarkerClick?.(marker.id)}
-              className={cn("lp-marker", marker.highlighted && "lp-marker-hero")}
-              data-layer={marker.layer}
-              style={{
-                animationDelay: `${Math.min(index * 35, 800)}ms`,
-                ...(marker.highlighted && routeAccentColor
-                  ? {
-                      background: routeAccentColor,
-                      boxShadow: `0 0 0 6px ${routeAccentColor}44`,
-                    }
-                  : {}),
-              }}
-            >
-              {order ?? ""}
-            </button>
-          </Marker>
-        );
-      })}
-
-      {firstStop && (
-        <Marker
-          longitude={firstStop.lon}
-          latitude={firstStop.lat}
-          anchor="bottom"
-          offset={[0, -34]}
-        >
-          <div className="lp-speech">
-            <span className="lp-speech-tag">Start here</span>
-            {firstStop.name}
-          </div>
-        </Marker>
-      )}
-    </>
-  );
+  const markerLayerProps = {
+    deckLayers,
+    domMarkers,
+    stopOrder,
+    firstStop,
+    routeAccentColor,
+    onMarkerClick,
+  };
 
   const sharedView = {
     initialViewState: {
@@ -306,7 +362,11 @@ export default function MapCanvas({
     >
       {useMapLibre ? (
         <MapLibreGL ref={maplibreRef} mapStyle={CARTO_STYLE} {...sharedView}>
-          {mapOverlay}
+          <MapMarkerLayer
+            Marker={MapLibreMarker}
+            DeckOverlay={DeckGLOverlayMapLibre}
+            {...markerLayerProps}
+          />
         </MapLibreGL>
       ) : (
         <MapGL
@@ -315,7 +375,11 @@ export default function MapCanvas({
           mapStyle="mapbox://styles/mapbox/light-v11"
           {...sharedView}
         >
-          {mapOverlay}
+          <MapMarkerLayer
+            Marker={MapboxMarker}
+            DeckOverlay={DeckGLOverlayMapbox}
+            {...markerLayerProps}
+          />
         </MapGL>
       )}
     </div>
