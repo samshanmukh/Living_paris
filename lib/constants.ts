@@ -58,6 +58,23 @@ export const LAYER_METADATA: Record<
     description: "Air quality monitoring points across Paris",
     defaultSource: "opendata.paris.fr — respirons-mieux",
   },
+  lighting: {
+    name: "Street Lighting",
+    description: "Public street and pathway lighting fixtures across Paris",
+    defaultSource: "opendata.paris.fr — eclairage-public",
+  },
+  halal: {
+    name: "Halal Dining",
+    description: "Restaurants and cafés tagged halal via OpenStreetMap",
+    defaultSource: "openstreetmap.org — Overpass diet:halal (Paris bbox)",
+  },
+  "metro-accessibility": {
+    name: "Metro Accessibility",
+    description:
+      "Paris Métro and RER station accessibility features (lifts, ramps, tactile)",
+    defaultSource:
+      "data.iledefrance-mobilites.fr — accessibilite-en-gare + arrets",
+  },
 };
 
 export const MOOD_LAYER_MAP: Record<string, LayerType[]> = {
