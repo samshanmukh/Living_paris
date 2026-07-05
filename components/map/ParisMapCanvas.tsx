@@ -69,6 +69,15 @@ export function ParisMapCanvas({
 
   const scene = sceneById(sceneId);
   const mapState = sceneMapStateById(sceneId);
+  const focusTarget = useMemo(() => {
+    const selectedFeature = backendFeatures.find(
+      (feature) => feature.properties.id === selectedFeatureId
+    );
+    if (selectedFeature) return featurePosition(selectedFeature);
+
+    const selectedVenue = mapState.venues.find((venue) => venue.id === selectedVenueId);
+    return selectedVenue?.coordinate;
+  }, [backendFeatures, mapState.venues, selectedFeatureId, selectedVenueId]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -123,6 +132,21 @@ export function ParisMapCanvas({
       easing: (t) => t * (2 - t)
     });
   }, [scene]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !focusTarget) return;
+
+    map.easeTo({
+      center: focusTarget,
+      zoom: Math.max(map.getZoom(), 16.35),
+      pitch: Math.max(map.getPitch(), 62),
+      bearing: map.getBearing(),
+      offset: [0, 42],
+      duration: 850,
+      easing: (t) => t * (2 - t)
+    });
+  }, [focusTarget]);
 
   const deckLayers = useMemo(
     () =>

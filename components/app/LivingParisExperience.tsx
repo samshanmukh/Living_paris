@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CloudRain,
   Database,
@@ -15,7 +15,7 @@ import {
   WifiOff
 } from "lucide-react";
 import { ParisMapCanvas, type VisibleMapLayers } from "@/components/map/ParisMapCanvas";
-import type { BackendSource, ExperienceResponse } from "@/lib/experience-types";
+import type { BackendSource, ExperienceResponse, RouteExperience } from "@/lib/experience-types";
 import {
   sceneById,
   sceneMapStateById,
@@ -125,27 +125,34 @@ export function LivingParisExperience() {
   const [backendSource, setBackendSource] = useState<BackendSource | null>(null);
   const [datasets, setDatasets] = useState<LayerMeta[]>([]);
   const [experience, setExperience] = useState<ExperienceResponse | null>(null);
+  const [routeOverride, setRouteOverride] = useState<RouteExperience | null>(null);
+  const [isRoutingSelection, setIsRoutingSelection] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [isMapReady, setIsMapReady] = useState(false);
+  const routeRequestIdRef = useRef(0);
 
   const activeScene = sceneById(activeSceneId);
   const activeMapState = sceneMapStateById(activeSceneId);
-  const backendFeatures = experience?.spatial.geojson.features ?? [];
+  const backendFeatures = useMemo(
+    () => experience?.spatial.geojson.features ?? [],
+    [experience]
+  );
+  const activeRoute = routeOverride ?? experience?.route ?? null;
   const routePath = useMemo(
     () =>
-      experience?.route?.geometry.geometry.coordinates.map(
+      activeRoute?.geometry.geometry.coordinates.map(
         ([lon, lat]) => [lon, lat] as Coordinate
       ),
-    [experience?.route]
+    [activeRoute]
   );
   const selectedFeature =
-    backendFeatures.find((feature) => feature.properties.id === selectedFeatureId) ??
-    backendFeatures[0] ??
-    null;
+    selectedFeatureId != null
+      ? backendFeatures.find((feature) => feature.properties.id === selectedFeatureId) ?? null
+      : null;
   const selectedVenue =
-    activeMapState.venues.find((venue) => venue.id === selectedVenueId) ??
-    activeMapState.venues[0] ??
-    null;
+    selectedVenueId != null
+      ? activeMapState.venues.find((venue) => venue.id === selectedVenueId) ?? null
+      : null;
   const panelMetrics = experience
     ? [
         {
@@ -154,9 +161,9 @@ export function LivingParisExperience() {
           tone: "places"
         },
         {
-          label: experience.route?.provider ?? "query radius",
-          value: experience.route
-            ? `${experience.route.durationMinutes}m`
+          label: isRoutingSelection ? "routing..." : activeRoute?.provider ?? "query radius",
+          value: activeRoute
+            ? `${activeRoute.durationMinutes}m`
             : `${Math.round(experience.spatial.meta.radiusMeters)}m`,
           tone: "route"
         },
@@ -170,11 +177,12 @@ export function LivingParisExperience() {
 
   const applyExperience = useCallback((payload: ExperienceResponse) => {
     setExperience(payload);
+    setRouteOverride(null);
     setActiveSceneId(payload.sceneId);
     setBackendSource(payload.backendSource);
     setDatasets(payload.datasets);
     setApiStatus(payload.backendSource === "worker" ? "worker" : "local");
-    setSelectedFeatureId(payload.spatial.geojson.features[0]?.properties.id ?? null);
+    setSelectedFeatureId(null);
     setSelectedVenueId(null);
   }, []);
 
@@ -191,9 +199,58 @@ export function LivingParisExperience() {
     setExperience(null);
     setSelectedFeatureId(null);
     setSelectedVenueId(null);
+    setRouteOverride(null);
+    routeRequestIdRef.current += 1;
     setActiveSceneId("date-night");
     setIsThinking(false);
+    setIsRoutingSelection(false);
   }, []);
+
+  const selectFeature = useCallback(
+    async (featureId: string) => {
+      const feature = backendFeatures.find((item) => item.properties.id === featureId);
+      setSelectedFeatureId(featureId);
+      setSelectedVenueId(null);
+
+      if (!feature || !experience) return;
+
+      const [targetLon, targetLat] = feature.geometry.coordinates;
+      const [startLon, startLat] = experience.spatial.meta.center;
+      const requestId = routeRequestIdRef.current + 1;
+      routeRequestIdRef.current = requestId;
+      setIsRoutingSelection(true);
+
+      try {
+        const response = await fetch("/api/routes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            profile: "walking",
+            accessible: Boolean(experience.intent.accessibility),
+            waypoints: [
+              { lon: startLon, lat: startLat, name: "Search center" },
+              { lon: targetLon, lat: targetLat, name: feature.properties.name }
+            ]
+          })
+        });
+
+        if (!response.ok) throw new Error("Route request failed");
+        const route = (await response.json()) as RouteExperience;
+        if (routeRequestIdRef.current === requestId) {
+          setRouteOverride(route);
+        }
+      } catch {
+        if (routeRequestIdRef.current === requestId) {
+          setRouteOverride(null);
+        }
+      } finally {
+        if (routeRequestIdRef.current === requestId) {
+          setIsRoutingSelection(false);
+        }
+      }
+    },
+    [backendFeatures, experience]
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -322,7 +379,7 @@ export function LivingParisExperience() {
     <main className="living-paris-team-app">
       <ParisMapCanvas
         backendFeatures={backendFeatures}
-        onFeatureSelect={setSelectedFeatureId}
+        onFeatureSelect={(featureId) => void selectFeature(featureId)}
         queryCenter={experience?.spatial.meta.center}
         queryRadiusMeters={experience?.spatial.meta.radiusMeters}
         routePathOverride={routePath}
@@ -457,6 +514,34 @@ export function LivingParisExperience() {
           ))}
         </div>
 
+        {selectedFeature ? (
+          <div className="selected-stop">
+            <div>
+              <span>{layerLabel(selectedFeature.properties.layer)}</span>
+              <strong>{selectedFeature.properties.name}</strong>
+              <small>{featureMeta(selectedFeature)}</small>
+            </div>
+            <em>
+              {isRoutingSelection
+                ? "routing..."
+                : activeRoute
+                  ? `${activeRoute.provider} · ${activeRoute.distanceMeters}m`
+                  : "selected"}
+            </em>
+          </div>
+        ) : selectedVenue ? (
+          <div className="selected-stop">
+            <div>
+              <span>{selectedVenue.category}</span>
+              <strong>{selectedVenue.name}</strong>
+              <small>
+                {selectedVenue.walkMinutes ? `${selectedVenue.walkMinutes} min walk` : activeScene.label}
+              </small>
+            </div>
+            <em>selected</em>
+          </div>
+        ) : null}
+
         <div className="stop-list">
           {backendFeatures.length
             ? backendFeatures.slice(0, 14).map((feature, index) => (
@@ -464,7 +549,7 @@ export function LivingParisExperience() {
                   className={feature.properties.id === selectedFeature?.properties.id ? "active" : ""}
                   key={feature.properties.id}
                   type="button"
-                  onClick={() => setSelectedFeatureId(feature.properties.id)}
+                  onClick={() => void selectFeature(feature.properties.id)}
                 >
                   <span>{index + 1}</span>
                   <div>
