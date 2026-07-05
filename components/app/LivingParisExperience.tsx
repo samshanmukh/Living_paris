@@ -8,10 +8,12 @@ import { LanguageProvider, useLanguage } from "@/components/app/LanguageProvider
 import { LanguageSelector } from "@/components/app/LanguageSelector";
 import ChatSheet, { type ChatMessage } from "@/features/chat/ChatSheet";
 import ExperienceCard from "@/features/experience/ExperienceCard";
+import MapLayerControls from "@/features/map/MapLayerControls";
 import { useSpeechSynthesis } from "@/features/voice/useSpeechSynthesis";
 import { useChat } from "@/hooks/useChat";
 import { MODE_PROMPTS, OPENING_CHIP_IDS } from "@/lib/mode-prompts";
-import type { ExperienceResult, IntentQuery, MapTheme } from "@/lib/types";
+import type { ExperienceResult, IntentQuery, LayerType, MapTheme } from "@/lib/types";
+import type { RouteResponse } from "@/services/routing/route-planner";
 
 const MapCanvas = dynamic(() => import("@/features/map/MapCanvas"), {
   ssr: false,
@@ -50,10 +52,9 @@ export function LivingParisExperience() {
 }
 
 function LivingParisExperienceInner() {
-  const { t, locale } = useLanguage();
-  const speechLang = locale === "fr" ? "fr-FR" : "en-US";
-  const { speak } = useSpeechSynthesis(speechLang);
-  const { sendMessage } = useChat();
+  const { t } = useLanguage();
+  const { speak, provider: ttsProvider } = useSpeechSynthesis("en-US");
+  const { sendMessage, intentSource } = useChat();
 
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -64,14 +65,31 @@ function LivingParisExperienceInner() {
   ]);
   const [thinking, setThinking] = useState(false);
   const [result, setResult] = useState<ExperienceResult | null>(null);
+  const [route, setRoute] = useState<RouteResponse | null>(null);
   const [routeGeometry, setRouteGeometry] = useState<Feature<LineString> | null>(null);
   const [cardOpen, setCardOpen] = useState(true);
   const [redrawing, setRedrawing] = useState(false);
+  const [hiddenLayers, setHiddenLayers] = useState<Set<LayerType>>(new Set());
+  const [focusedStopId, setFocusedStopId] = useState<string | null>(null);
   const intentRef = useRef<IntentQuery | undefined>(undefined);
   const abortRef = useRef<AbortController | null>(null);
   const redrawTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const openingChips = OPENING_CHIP_IDS.map((id) => MODE_PROMPTS[id]);
+
+  const toggleLayer = useCallback((layer: LayerType) => {
+    setHiddenLayers((prev) => {
+      const next = new Set(prev);
+      if (next.has(layer)) next.delete(layer);
+      else next.add(layer);
+      return next;
+    });
+  }, []);
+
+  const handleMarkerClick = useCallback((markerId: string) => {
+    setCardOpen(true);
+    setFocusedStopId(markerId);
+  }, []);
 
   const handleSend = useCallback(
     async (text: string) => {
@@ -81,6 +99,7 @@ function LivingParisExperienceInner() {
 
       setMessages((prev) => [...prev, { id: nextId(), role: "user", text }]);
       setThinking(true);
+      setFocusedStopId(null);
 
       try {
         const history = messages
@@ -100,19 +119,22 @@ function LivingParisExperienceInner() {
         intentRef.current = data.intent;
         setRedrawing(true);
         setResult(data.result);
+        setRoute(data.route);
         setRouteGeometry(data.route?.geometry ?? null);
+        setHiddenLayers(new Set());
         setCardOpen(true);
         setMessages((prev) => [
           ...prev,
           { id: nextId(), role: "paris", text: data.reply },
         ]);
-        speak(data.reply, speechLang);
+        void speak(data.reply);
 
         if (redrawTimerRef.current) clearTimeout(redrawTimerRef.current);
         redrawTimerRef.current = setTimeout(() => setRedrawing(false), 2400);
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
         setResult(null);
+        setRoute(null);
         setRouteGeometry(null);
         setRedrawing(false);
         setMessages((prev) => [
@@ -129,7 +151,7 @@ function LivingParisExperienceInner() {
         }
       }
     },
-    [messages, sendMessage, speak, speechLang, t.messages.queryFailed]
+    [messages, sendMessage, speak, t.messages.queryFailed]
   );
 
   const theme: MapTheme = result?.mapState.theme ?? "day";
@@ -137,7 +159,12 @@ function LivingParisExperienceInner() {
 
   return (
     <main className="relative h-dvh w-full overflow-hidden bg-cream">
-      <MapCanvas mapState={result?.mapState ?? null} routeGeometry={routeGeometry} />
+      <MapCanvas
+        mapState={result?.mapState ?? null}
+        routeGeometry={routeGeometry}
+        hiddenLayers={hiddenLayers}
+        onMarkerClick={handleMarkerClick}
+      />
 
       <AnimatePresence>
         {theme !== "day" && (
@@ -167,9 +194,27 @@ function LivingParisExperienceInner() {
             <span className="font-display text-[14px] font-semibold tracking-tight text-ink">
               {t.brand.eyebrow}
             </span>
+            {intentSource && hasStarted && (
+              <span className="rounded-full bg-ink/8 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-soft">
+                {intentSource === "llm" ? "Grok" : "local"}
+              </span>
+            )}
+            {ttsProvider === "grok" && (
+              <span className="rounded-full bg-terracotta/15 px-2 py-0.5 text-[10px] font-semibold text-terracotta">
+                voice
+              </span>
+            )}
           </div>
           <LanguageSelector />
         </motion.div>
+
+        {result?.mapState.visibleLayers && (
+          <MapLayerControls
+            visibleLayers={result.mapState.visibleLayers}
+            hiddenLayers={hiddenLayers}
+            onToggle={toggleLayer}
+          />
+        )}
 
         <AnimatePresence>
           {redrawing && (
@@ -193,7 +238,13 @@ function LivingParisExperienceInner() {
       </div>
 
       <div className="absolute inset-x-0 bottom-0 z-10 mx-auto flex w-full max-w-md flex-col justify-end sm:max-w-lg">
-        <ExperienceCard result={result} open={cardOpen} onToggle={() => setCardOpen((v) => !v)} />
+        <ExperienceCard
+          result={result}
+          route={route}
+          open={cardOpen}
+          focusedStopId={focusedStopId}
+          onToggle={() => setCardOpen((value) => !value)}
+        />
         <ChatSheet
           messages={messages}
           chips={hasStarted ? FOLLOWUP_CHIPS : openingChips}

@@ -98,11 +98,14 @@ export async function runIntegratedChat(body: unknown): Promise<IntegratedChatRe
   let route: RouteResponse | null = null;
   if (result.mapState.routeWaypoints.length >= 2) {
     try {
-      route = await planRoute({
-        waypoints: result.mapState.routeWaypoints,
-        profile: "walking",
-        accessible: intent.accessibility,
-      });
+      route = await planRoute(
+        {
+          waypoints: result.mapState.routeWaypoints,
+          profile: "walking",
+          accessible: intent.accessibility,
+        },
+        { mapboxAccessToken: process.env.MAPBOX_ACCESS_TOKEN || undefined }
+      );
     } catch {
       route = null;
     }

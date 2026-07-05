@@ -14,10 +14,15 @@ interface BuildDeckLayersInput {
   mapState: MapState;
   routeGeometry: Feature<LineString> | null;
   pulse: number;
+  hiddenLayers?: Set<LayerType>;
 }
 
-function visibleSet(mapState: MapState): Set<LayerType> {
-  return new Set(mapState.visibleLayers);
+function isLayerVisible(
+  layer: LayerType,
+  visible: Set<LayerType>,
+  hiddenLayers?: Set<LayerType>
+): boolean {
+  return visible.has(layer) && !hiddenLayers?.has(layer);
 }
 
 function routePath(routeGeometry: Feature<LineString> | null): [number, number][] {
@@ -27,21 +32,35 @@ function routePath(routeGeometry: Feature<LineString> | null): [number, number][
 
 function heatmapWeight(marker: MapMarker): number {
   if (marker.layer === "noise" && marker.noiseLevel != null) {
-    return Math.max(0.2, Math.min(1, marker.noiseLevel / 85));
+    return Math.max(0.35, Math.min(1, marker.noiseLevel / 85));
   }
   if (marker.layer === "air-quality" && marker.airQualityIndex != null) {
-    return Math.max(0.2, Math.min(1, marker.airQualityIndex / 100));
+    return Math.max(0.35, Math.min(1, marker.airQualityIndex / 100));
   }
-  return 0.35;
+  return 0.5;
+}
+
+function contextMarkerSources(mapState: MapState): MapMarker[] {
+  const merged = new Map<string, MapMarker>();
+  for (const marker of mapState.contextMarkers ?? []) {
+    merged.set(marker.id, marker);
+  }
+  for (const marker of mapState.markers) {
+    if (CONTEXT_OVERLAY_LAYERS.includes(marker.layer)) {
+      merged.set(marker.id, marker);
+    }
+  }
+  return [...merged.values()];
 }
 
 export function buildDeckLayers({
   mapState,
   routeGeometry,
   pulse,
+  hiddenLayers,
 }: BuildDeckLayersInput): Layer[] {
   const layers: Layer[] = [];
-  const visible = visibleSet(mapState);
+  const visible = new Set(mapState.visibleLayers);
   const accent = THEME_ACCENT[mapState.theme];
   const path = routePath(routeGeometry);
 
@@ -78,22 +97,22 @@ export function buildDeckLayers({
     );
   }
 
-  const contextMarkers = mapState.markers.filter(
-    (m) => CONTEXT_OVERLAY_LAYERS.includes(m.layer) && visible.has(m.layer)
+  const contextMarkers = contextMarkerSources(mapState).filter((marker) =>
+    isLayerVisible(marker.layer, visible, hiddenLayers)
   );
 
-  if (visible.has("noise")) {
-    const noisePoints = contextMarkers.filter((m) => m.layer === "noise");
-    if (noisePoints.length >= 3) {
+  if (isLayerVisible("noise", visible, hiddenLayers)) {
+    const noisePoints = contextMarkers.filter((marker) => marker.layer === "noise");
+    if (noisePoints.length >= 1) {
       layers.push(
         new HeatmapLayer<MapMarker>({
           id: "lp-noise-heatmap",
           data: noisePoints,
-          getPosition: (m) => m.coords,
+          getPosition: (marker) => marker.coords,
           getWeight: heatmapWeight,
-          radiusPixels: 72,
-          intensity: 1.4,
-          threshold: 0.08,
+          radiusPixels: 110,
+          intensity: 1.6,
+          threshold: 0.04,
           colorRange: [
             [255, 255, 204, 0],
             [255, 237, 160, 90],
@@ -108,18 +127,18 @@ export function buildDeckLayers({
     }
   }
 
-  if (visible.has("air-quality")) {
-    const aqPoints = contextMarkers.filter((m) => m.layer === "air-quality");
-    if (aqPoints.length >= 2) {
+  if (isLayerVisible("air-quality", visible, hiddenLayers)) {
+    const aqPoints = contextMarkers.filter((marker) => marker.layer === "air-quality");
+    if (aqPoints.length >= 1) {
       layers.push(
         new HeatmapLayer<MapMarker>({
           id: "lp-aq-heatmap",
           data: aqPoints,
-          getPosition: (m) => m.coords,
+          getPosition: (marker) => marker.coords,
           getWeight: heatmapWeight,
-          radiusPixels: 88,
-          intensity: 1.2,
-          threshold: 0.06,
+          radiusPixels: 120,
+          intensity: 1.4,
+          threshold: 0.03,
           colorRange: [
             [237, 248, 251, 0],
             [178, 226, 226, 80],
@@ -139,10 +158,11 @@ export function buildDeckLayers({
       new ScatterplotLayer<MapMarker>({
         id: "lp-context-markers",
         data: contextMarkers,
-        getPosition: (m) => m.coords,
-        getRadius: (m) => markerRadius(m.layer, m.highlighted, Math.sin(pulse / 7) * 0.16 + 1),
+        getPosition: (marker) => marker.coords,
+        getRadius: (marker) =>
+          markerRadius(marker.layer, marker.highlighted, Math.sin(pulse / 7) * 0.16 + 1),
         radiusUnits: "pixels",
-        getFillColor: (m) => layerAccent(m.layer, mapState.theme),
+        getFillColor: (marker) => layerAccent(marker.layer, mapState.theme),
         getLineColor: [255, 255, 255, 180],
         getLineWidth: 1.5,
         lineWidthUnits: "pixels",
@@ -152,7 +172,7 @@ export function buildDeckLayers({
   }
 
   const heroes = mapState.markers.filter(
-    (m) => m.highlighted && !CONTEXT_OVERLAY_LAYERS.includes(m.layer)
+    (marker) => marker.highlighted && !CONTEXT_OVERLAY_LAYERS.includes(marker.layer)
   );
 
   if (heroes.length) {
@@ -163,11 +183,11 @@ export function buildDeckLayers({
         diskResolution: 18,
         extruded: true,
         radius: 22,
-        getPosition: (m) => m.coords,
-        getElevation: (m) => (m.highlighted ? 90 : 40),
-        getFillColor: (m) => {
-          const c = layerAccent(m.layer, mapState.theme);
-          return [c[0], c[1], c[2], 190] as [number, number, number, number];
+        getPosition: (marker) => marker.coords,
+        getElevation: () => 90,
+        getFillColor: (marker) => {
+          const color = layerAccent(marker.layer, mapState.theme);
+          return [color[0], color[1], color[2], 190] as [number, number, number, number];
         },
         pickable: false,
         elevationScale: 1,
