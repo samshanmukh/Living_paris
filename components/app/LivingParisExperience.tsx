@@ -103,24 +103,30 @@ function LivingParisExperienceInner() {
     mapCaptureRef.current = capture;
   }, []);
 
+  const pushErrorUnlessAborted = useCallback((error: unknown) => {
+    // Superseded requests abort silently — the newer query owns the UI.
+    if (error instanceof DOMException && error.name === "AbortError") return;
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: nextId(),
+        role: "paris",
+        text: "Something went wrong — try again in a moment.",
+      },
+    ]);
+  }, []);
+
   const handleSubmit = useCallback(
     async (text: string) => {
       setMessages((prev) => [...prev, { id: nextId(), role: "user", text }]);
       setFocusedStopId(null);
       try {
         await submitFreeformIntent(text);
-      } catch {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: nextId(),
-            role: "paris",
-            text: "Something went wrong — try again in a moment.",
-          },
-        ]);
+      } catch (error) {
+        pushErrorUnlessAborted(error);
       }
     },
-    [submitFreeformIntent]
+    [pushErrorUnlessAborted, submitFreeformIntent]
   );
 
   const handlePreset = useCallback(
@@ -130,18 +136,11 @@ function LivingParisExperienceInner() {
       setFocusedStopId(null);
       try {
         await selectPreset(id);
-      } catch {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: nextId(),
-            role: "paris",
-            text: "Something went wrong — try again in a moment.",
-          },
-        ]);
+      } catch (error) {
+        pushErrorUnlessAborted(error);
       }
     },
-    [presetIntents, selectPreset]
+    [presetIntents, pushErrorUnlessAborted, selectPreset]
   );
 
   const hasStarted =

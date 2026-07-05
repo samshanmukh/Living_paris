@@ -49,7 +49,7 @@ export default function MapCanvas({
   onCaptureReady,
 }: MapCanvasProps) {
   const mapRef = useRef<MapRef>(null);
-  const loadedRef = useRef(false);
+  const [mapLoaded, setMapLoaded] = useState(false);
   const [pulse, setPulse] = useState(0);
 
   useEffect(() => {
@@ -85,7 +85,7 @@ export default function MapCanvas({
     const map = mapRef.current?.getMap();
     if (!map) return;
 
-    loadedRef.current = true;
+    setMapLoaded(true);
     applyToyCityStyle(map);
     addToyBuildings(map);
 
@@ -107,9 +107,11 @@ export default function MapCanvas({
     );
   }, [onCaptureReady]);
 
+  // Runs when a plan arrives and when the map finishes loading with a plan
+  // already present (dev-cache boot, frozen-snapshot switch).
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapState || !loadedRef.current) return;
+    if (!map || !mapState || !mapLoaded) return;
 
     const heroCoords = mapState.markers
       .filter((marker) => marker.highlighted)
@@ -135,7 +137,7 @@ export default function MapCanvas({
         essential: true,
       });
     }
-  }, [mapState]);
+  }, [mapState, mapLoaded]);
 
   const stopOrder = useMemo(() => {
     if (!mapState) return new Map<string, number>();

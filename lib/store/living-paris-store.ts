@@ -32,9 +32,12 @@ function emojiForIntent(intentId: string, result: ExperienceResult | null): stri
   return preset?.emoji ?? "✨";
 }
 
+type ChatHistoryEntry = { role: "user" | "assistant"; content: string };
+
 async function postChat(
   message: string,
   intent: IntentQuery | undefined,
+  history: ChatHistoryEntry[],
   signal: AbortSignal
 ): Promise<IntegratedChatResponse> {
   const res = await fetch("/api/chat", {
@@ -43,6 +46,7 @@ async function postChat(
     body: JSON.stringify({
       message,
       intent,
+      history,
       context: { lat: 48.8566, lon: 2.3522 },
     }),
     signal,
@@ -98,6 +102,7 @@ function bootFromCache() {
 
 let intentQuery: IntentQuery | undefined;
 let abortController: AbortController | null = null;
+let chatHistory: ChatHistoryEntry[] = [];
 
 export const useLivingParisStore = create<LivingParisState>((set, get) => {
   const boot = bootFromCache();
@@ -123,20 +128,57 @@ export const useLivingParisStore = create<LivingParisState>((set, get) => {
   const runQuery = async (
     prompt: string,
     theme: Parameters<typeof buildIntentFromApi>[0],
-    intentPatch?: IntentQuery
+    options: {
+      shell: LivingParisIntent;
+      presetId: PresetIntentId | null;
+      intentPatch?: IntentQuery;
+    }
   ) => {
     abortController?.abort();
     const controller = new AbortController();
     abortController = controller;
 
-    set({ isGenerating: true, livingParisResponse: null, useLiveMap: true });
+    // Snapshot for rollback so a failed query doesn't strand the planning shell
+    // over the previous plan's map and cards.
+    const previous = {
+      currentIntent: get().currentIntent,
+      selectedPresetId: get().selectedPresetId,
+      livingParisResponse: get().livingParisResponse,
+    };
+    const previousIntentQuery = intentQuery;
+
+    set({
+      currentIntent: options.shell,
+      selectedPresetId: options.presetId,
+      isGenerating: true,
+      livingParisResponse: null,
+      useLiveMap: true,
+    });
 
     try {
-      if (intentPatch) intentQuery = { ...intentQuery, ...intentPatch };
-      const data = await postChat(prompt, intentQuery, controller.signal);
+      if (options.intentPatch) intentQuery = { ...intentQuery, ...options.intentPatch };
+      const data = await postChat(
+        prompt,
+        intentQuery,
+        chatHistory.slice(-10),
+        controller.signal
+      );
       intentQuery = data.intent;
+      chatHistory = [
+        ...chatHistory.slice(-18),
+        { role: "user", content: prompt },
+        { role: "assistant", content: data.reply },
+      ];
       const enriched = buildIntentFromApi(theme, data.result, data.route, data.reply);
       applyResponse(enriched, data);
+    } catch (error) {
+      // Superseded request — the newer query owns the UI now.
+      const aborted = error instanceof DOMException && error.name === "AbortError";
+      if (!aborted && abortController === controller) {
+        intentQuery = previousIntentQuery;
+        set(previous);
+      }
+      throw error;
     } finally {
       if (abortController === controller) {
         set({ isGenerating: false });
@@ -163,15 +205,13 @@ export const useLivingParisStore = create<LivingParisState>((set, get) => {
       const shell = buildShellIntent(preset, {
         response: "Living Paris is planning…",
       });
-      set({ selectedPresetId: intentId, currentIntent: shell });
-      await runQuery(preset.prompt, { preset, shell });
+      await runQuery(preset.prompt, { preset, shell }, { shell, presetId: intentId });
     },
 
     submitFreeformIntent: async (text) => {
       const parsed = parseFreeformIntent(text);
       const shell = buildIntentFromParsedShell(parsed);
       shell.response = "Living Paris is planning…";
-      set({ selectedPresetId: parsed.presetId ?? null, currentIntent: shell });
 
       const preset = parsed.presetId ? PRESET_BY_ID[parsed.presetId] : undefined;
       const patch: IntentQuery = {};
@@ -179,7 +219,11 @@ export const useLivingParisStore = create<LivingParisState>((set, get) => {
       if (parsed.budget != null) patch.budget = parsed.budget;
       if (parsed.mapMood === "rainy") patch.rainy = true;
 
-      await runQuery(parsed.promptText, { preset, parsed, shell }, patch);
+      await runQuery(
+        parsed.promptText,
+        { preset, parsed, shell },
+        { shell, presetId: parsed.presetId ?? null, intentPatch: patch }
+      );
     },
 
     toggleLayer: (layer) => {

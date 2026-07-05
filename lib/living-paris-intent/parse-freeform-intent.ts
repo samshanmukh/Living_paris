@@ -110,17 +110,20 @@ export function parseFreeformIntent(text: string): ParsedFreeformIntent {
 
   if (best.score >= 2 && best.id) {
     const preset = PRESET_BY_ID[best.id];
+    // Marais requests default to a 90-minute budget — keep the backend in
+    // sync with the subtitle instead of only implying it in copy.
+    const effectiveTime = timeBudgetMinutes ?? (hasMarais ? 90 : undefined);
     return {
       presetId: best.id,
       mapMood: preset.mapMood,
       accentColor: preset.accentColor,
       glowColor: preset.glowColor,
       promptText: trimmed,
-      timeBudgetMinutes,
+      timeBudgetMinutes: effectiveTime,
       budget,
       customTitle: hasMarais ? `${preset.title} · Le Marais` : undefined,
       customSubtitle: hasMarais
-        ? `Tailored for ${timeBudgetMinutes ?? 90} minutes near Le Marais`
+        ? `Tailored for ${effectiveTime ?? 90} minutes near Le Marais`
         : timeBudgetMinutes
           ? `About ${timeBudgetMinutes} minutes, trimmed to fit`
           : undefined,
