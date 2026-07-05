@@ -14,6 +14,13 @@ const workerApiRewrites = [
 ] as const;
 
 const nextConfig: NextConfig = {
+  env: {
+    /** Accept Companion/Vite naming — falls back when NEXT_PUBLIC_* is unset. */
+    NEXT_PUBLIC_MAPBOX_TOKEN:
+      process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ||
+      process.env.VITE_MAPBOX_TOKEN?.trim() ||
+      "",
+  },
   async rewrites() {
     return workerApiRewrites.map((source) => ({
       source,

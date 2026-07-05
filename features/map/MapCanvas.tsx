@@ -17,6 +17,7 @@ import { effectiveRain, useSceneStore } from "@/lib/store/useSceneStore";
 import { useCityStore } from "@/lib/store/useCityStore";
 import { usePrefsStore } from "@/lib/store/usePrefsStore";
 import type { MapState } from "@/lib/types";
+import { getMapboxPublicToken } from "@/lib/mapbox-token";
 import MapAnnotations from "./MapAnnotations";
 import MapControls from "./MapControls";
 import { LivingParisOverlay } from "./overlay";
@@ -28,7 +29,7 @@ import {
   resolveLightPreset,
 } from "./standard-style";
 
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+const MAPBOX_TOKEN = getMapboxPublicToken();
 const PARIS_CENTER = { longitude: 2.3522, latitude: 48.8566 };
 const PARIS_LNG_LAT: [number, number] = [2.3522, 48.8566];
 
@@ -211,7 +212,9 @@ export default function MapCanvas({
     return (
       <div className="absolute inset-0 z-0 grid place-items-center bg-[var(--paper,#efe9df)] px-8 text-center">
         <p className="text-sm text-[var(--ink-soft)]">
-          Set <code className="font-semibold">NEXT_PUBLIC_MAPBOX_TOKEN</code> in{" "}
+          Set{" "}
+          <code className="font-semibold">NEXT_PUBLIC_MAPBOX_TOKEN</code> or{" "}
+          <code className="font-semibold">VITE_MAPBOX_TOKEN</code> in{" "}
           <code className="font-semibold">.env.local</code> to load the map.
         </p>
       </div>

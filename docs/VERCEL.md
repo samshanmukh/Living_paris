@@ -33,6 +33,7 @@ In **Project → Settings → Environment Variables**, add these for **Productio
 |----------|----------|-------|
 | `OPENROUTER_API_KEY` | Yes | From [openrouter.ai/keys](https://openrouter.ai/keys) — powers `/api/chat` and TTS |
 | `NEXT_PUBLIC_MAPBOX_TOKEN` | Yes | Mapbox **public** `pk.*` token — client map basemap |
+| `VITE_MAPBOX_TOKEN` | Optional | Same token as above — Companion/Vite alias; used if `NEXT_PUBLIC_*` is unset |
 | `MAPBOX_ACCESS_TOKEN` | Recommended | Mapbox **secret** token — turn-by-turn routes in chat; falls back to Turf estimate without it |
 | `OPENROUTER_MODEL` | Optional | Default `x-ai/grok-4.3` |
 | `OPENROUTER_TTS_MODEL` | Optional | Default `x-ai/grok-voice-tts-1.0` |
